@@ -1,0 +1,7 @@
+server/node_modules
+server/crm.db
+server/uploads
+client/node_modules
+client/dist
+node_modules
+.env
