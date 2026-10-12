@@ -21,29 +21,39 @@ export default function Login({ onLogin }) {
   }
 
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center p-4">
-      <div className="bg-black border border-white/10 rounded-2xl shadow-2xl p-8 w-full max-w-sm">
-        <div className="text-center mb-8">
-          <img src="/logo.png" alt="ProtectoIT" className="h-24 mx-auto mb-2 object-contain" />
-          <p className="text-white/50 text-sm mt-1">CRM — Accès équipe</p>
+    <div style={{
+      minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: 16, background: '#0a0a0b', fontFamily: "'Manrope', system-ui, sans-serif"
+    }}>
+      <div style={{ width: '100%', maxWidth: 360, background: '#161618', border: '1px solid rgba(255,255,255,.08)', borderRadius: 16, padding: 32, boxShadow: '0 30px 80px rgba(0,0,0,.4)' }}>
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <img src="/logo-white.png" alt="PROTECTOIT" style={{ height: 64, margin: '0 auto 12px', display: 'block', objectFit: 'contain' }} />
+          <p style={{ color: '#9b958c', fontSize: 12.5, margin: 0 }}>CRM — Accès équipe</p>
         </div>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
-            <label className="block text-sm font-medium text-white/70 mb-1">Mot de passe</label>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#9b958c', marginBottom: 6 }}>Mot de passe</label>
             <input
               type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
-              className="w-full border border-white/20 bg-white/10 text-white rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-white/50 placeholder-white/30"
+              style={{
+                width: '100%', height: 42, padding: '0 13px', borderRadius: 10, fontFamily: 'inherit', fontSize: 13.5,
+                border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#efece6'
+              }}
               placeholder="••••••••••"
               autoFocus
             />
           </div>
-          {error && <p className="text-red-400 text-sm">{error}</p>}
+          {error && <p style={{ color: '#e08877', fontSize: 13, margin: 0 }}>{error}</p>}
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-white text-black py-2.5 rounded-lg font-semibold hover:bg-white/90 transition-colors disabled:opacity-50"
+            style={{
+              width: '100%', height: 44, border: 'none', borderRadius: 10, fontFamily: 'inherit',
+              background: '#cf8a48', color: '#14110c', fontSize: 13.5, fontWeight: 700, cursor: 'pointer',
+              opacity: loading ? .6 : 1, marginTop: 4
+            }}
           >
             {loading ? 'Connexion...' : 'Se connecter'}
           </button>

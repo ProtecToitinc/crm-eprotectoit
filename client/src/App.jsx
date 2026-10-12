@@ -2,11 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Login from './components/Login';
 import Layout from './components/Layout';
+import { ThemeProvider } from './context/ThemeContext';
+import { UIProvider } from './context/UIContext';
 import Dashboard from './pages/Dashboard';
 import Clients from './pages/Clients';
 import ClientDetail from './pages/ClientDetail';
 import Pipeline from './pages/Pipeline';
-import Taches from './pages/Taches';
+import Calendrier from './pages/Calendrier';
+import Carte from './pages/Carte';
+import Soumissions from './pages/Soumissions';
+import Facturation from './pages/Facturation';
 import { api } from './api';
 
 export default function App() {
@@ -22,23 +27,30 @@ export default function App() {
   }, []);
 
   if (auth === null) return (
-    <div className="min-h-screen bg-blue-900 flex items-center justify-center">
-      <div className="text-blue-300 text-sm">Chargement...</div>
+    <div className="min-h-screen flex items-center justify-center" style={{ background: '#0a0a0b' }}>
+      <div style={{ color: '#8f8a82', fontSize: 13.5, fontFamily: 'Manrope, sans-serif' }}>Chargement...</div>
     </div>
   );
 
   if (!auth) return <Login onLogin={() => setAuth(true)} />;
 
   return (
-    <Layout>
-      <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/clients" element={<Clients />} />
-        <Route path="/clients/:id" element={<ClientDetail />} />
-        <Route path="/pipeline" element={<Pipeline />} />
-        <Route path="/taches" element={<Taches />} />
-        <Route path="*" element={<Navigate to="/" />} />
-      </Routes>
-    </Layout>
+    <ThemeProvider>
+      <UIProvider>
+        <Layout>
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/clients" element={<Clients />} />
+            <Route path="/clients/:id" element={<ClientDetail />} />
+            <Route path="/pipeline" element={<Pipeline />} />
+            <Route path="/calendrier" element={<Calendrier />} />
+            <Route path="/carte" element={<Carte />} />
+            <Route path="/soumissions" element={<Soumissions />} />
+            <Route path="/facturation" element={<Facturation />} />
+            <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        </Layout>
+      </UIProvider>
+    </ThemeProvider>
   );
 }

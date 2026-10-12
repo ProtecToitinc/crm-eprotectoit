@@ -1,7 +1,7 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 
-const dbPath = path.join(__dirname, 'crm.db');
+const dbPath = process.env.DB_PATH || path.join(__dirname, 'crm.db');
 const db = new sqlite3.Database(dbPath);
 
 function run(sql, params = []) {
@@ -31,8 +31,14 @@ function all(sql, params = []) {
   });
 }
 
+async function columnExists(table, column) {
+  const cols = await all(`PRAGMA table_info(${table})`);
+  return cols.some(c => c.name === column);
+}
+
 async function init() {
   await run('PRAGMA foreign_keys = ON');
+
   await run(`CREATE TABLE IF NOT EXISTS clients (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nom TEXT NOT NULL,
@@ -45,6 +51,7 @@ async function init() {
     notes TEXT,
     created_at TEXT DEFAULT (datetime('now'))
   )`);
+
   await run(`CREATE TABLE IF NOT EXISTS toitures (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
@@ -54,17 +61,31 @@ async function init() {
     etat TEXT,
     notes TEXT
   )`);
+
   await run(`CREATE TABLE IF NOT EXISTS opportunites (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
     titre TEXT NOT NULL,
-    etape TEXT NOT NULL DEFAULT 'prospect',
+    etape TEXT NOT NULL DEFAULT 'lead',
+    service TEXT,
     valeur REAL DEFAULT 0,
     notes TEXT,
     date_prevue TEXT,
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now'))
   )`);
+
+  // Migration: add service column if missing (upgrade from older schema)
+  if (!(await columnExists('opportunites', 'service'))) {
+    await run(`ALTER TABLE opportunites ADD COLUMN service TEXT`);
+  }
+
+  // Migration: remap old stage names to new pipeline stages
+  const stageMap = { prospect: 'lead', inspection: 'rdv', devis: 'soumission', contrat: 'contrat', ferme: 'complete' };
+  for (const [oldStage, newStage] of Object.entries(stageMap)) {
+    await run(`UPDATE opportunites SET etape = ? WHERE etape = ?`, [newStage, oldStage]);
+  }
+
   await run(`CREATE TABLE IF NOT EXISTS taches (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     client_id INTEGER REFERENCES clients(id) ON DELETE SET NULL,
@@ -76,6 +97,7 @@ async function init() {
     priorite TEXT DEFAULT 'normale',
     created_at TEXT DEFAULT (datetime('now'))
   )`);
+
   await run(`CREATE TABLE IF NOT EXISTS documents (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     client_id INTEGER REFERENCES clients(id) ON DELETE CASCADE,
@@ -85,12 +107,57 @@ async function init() {
     taille INTEGER,
     created_at TEXT DEFAULT (datetime('now'))
   )`);
+
   await run(`CREATE TABLE IF NOT EXISTS historique (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
     type TEXT NOT NULL,
     description TEXT NOT NULL,
     created_at TEXT DEFAULT (datetime('now'))
+  )`);
+
+  await run(`CREATE TABLE IF NOT EXISTS quotes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reference TEXT NOT NULL UNIQUE,
+    client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+    opportunite_id INTEGER REFERENCES opportunites(id) ON DELETE SET NULL,
+    service TEXT,
+    montant REAL DEFAULT 0,
+    statut TEXT NOT NULL DEFAULT 'brouillon',
+    date_visite TEXT,
+    notes TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  )`);
+
+  await run(`CREATE TABLE IF NOT EXISTS invoices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reference TEXT NOT NULL UNIQUE,
+    client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+    quote_id INTEGER REFERENCES quotes(id) ON DELETE SET NULL,
+    montant REAL DEFAULT 0,
+    statut TEXT NOT NULL DEFAULT 'en_attente',
+    date_echeance TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  )`);
+
+  await run(`CREATE TABLE IF NOT EXISTS evenements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER REFERENCES clients(id) ON DELETE CASCADE,
+    opportunite_id INTEGER REFERENCES opportunites(id) ON DELETE SET NULL,
+    titre TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'rdv',
+    date_debut TEXT NOT NULL,
+    heure TEXT,
+    google_event_id TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  )`);
+
+  await run(`CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT
   )`);
 }
 

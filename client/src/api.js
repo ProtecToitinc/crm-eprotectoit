@@ -24,6 +24,7 @@ export const api = {
   login: (password) => req('POST', '/auth/login', { password }),
   verify: (token) => req('POST', '/auth/verify', { token }),
 
+  meta: () => req('GET', '/meta'),
   stats: () => req('GET', '/stats'),
 
   clients: {
@@ -51,5 +52,36 @@ export const api = {
   documents: {
     upload: (formData) => req('POST', '/documents', formData, true),
     delete: (id) => req('DELETE', `/documents/${id}`)
+  },
+
+  quotes: {
+    list: () => req('GET', '/quotes'),
+    create: (data) => req('POST', '/quotes', data),
+    update: (id, data) => req('PUT', `/quotes/${id}`, data),
+    delete: (id) => req('DELETE', `/quotes/${id}`)
+  },
+
+  invoices: {
+    list: () => req('GET', '/invoices'),
+    create: (data) => req('POST', '/invoices', data),
+    update: (id, data) => req('PUT', `/invoices/${id}`, data),
+    delete: (id) => req('DELETE', `/invoices/${id}`)
+  },
+
+  evenements: {
+    list: (debut, fin) => req('GET', `/evenements${debut ? `?debut=${debut}&fin=${fin}` : ''}`),
+    create: (data) => req('POST', '/evenements', data),
+    update: (id, data) => req('PUT', `/evenements/${id}`, data),
+    delete: (id) => req('DELETE', `/evenements/${id}`)
+  },
+
+  google: {
+    status: () => req('GET', '/google/status'),
+    authUrl: () => req('GET', '/google/auth-url'),
+    disconnect: () => req('POST', '/google/disconnect'),
+    sync: () => req('POST', '/google/sync'),
+    calendars: () => req('GET', '/google/calendars'),
+    setCalendar: (calendarId) => req('POST', '/google/calendar', { calendarId }),
+    createCalendar: () => req('POST', '/google/calendar/create')
   }
 };
