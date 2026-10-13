@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Camera, Trash2 } from 'lucide-react';
+import { Camera, Trash2, Plus } from 'lucide-react';
 import { api } from '../api';
-import { cardStyle, btnGhost, btnAccent, btnDanger, inputStyle, textareaStyle, Field, Modal } from '../components/ui';
+import { cardStyle, btnGhost, btnAccent, btnDanger, inputStyle, textareaStyle, Field, Modal, ClientPicker } from '../components/ui';
 import { useLoad, ErrorNote, CallButton, Empty, Loading, Pill, Stat, statGrid, dollars, dollars2, notifyBadges } from '../components/bits';
 import { fmtDay } from '../lib/dates';
 import { useUI } from '../context/UIContext';
@@ -21,11 +21,21 @@ export default function Chantiers() {
   const { data, error, loading, reload } = useLoad(() => api.chantiers.list());
   const [openId, setOpenId] = useState(null);
   const [filter, setFilter] = useState('actifs');
+  const [creating, setCreating] = useState(false);
+  const [msg, setMsg] = useState('');
+  const wipe = async () => {
+    if (!window.confirm('Effacer TOUS les chantiers (et leurs photos)? Les clients, opportunités et soumissions ne sont pas touchés. Cette action est définitive.')) return;
+    try { const r = await api.chantiers.deleteAll(); setMsg(`${r.deleted} chantier(s) effacé(s)`); reload(); notifyBadges(); } catch (e) { setMsg(e.message); }
+  };
   const list = (data || []).filter(c => filter === 'tous' || (filter === 'actifs' ? !['paye'].includes(c.statut) : c.statut === filter));
 
   return (
     <div>
-      <ErrorNote>{error}</ErrorNote>
+      <ErrorNote>{error || msg}</ErrorNote>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+        <button style={{ ...btnAccent, height: 46 }} onClick={() => setCreating(true)}><Plus size={18} /> Nouveau chantier</button>
+        {(data || []).length > 0 && <button style={btnDanger} onClick={wipe}><Trash2 size={15} /> Tout effacer</button>}
+      </div>
       <div style={statGrid}>
         {CH_STATUTS.slice(0, 4).map(([k, label, hue]) => <Stat key={k} label={label} value={(data || []).filter(c => c.statut === k).length} hue={hue} />)}
       </div>
@@ -58,7 +68,47 @@ export default function Chantiers() {
         {!loading && !list.length && <Empty>Aucun chantier ici. Ils sont créés automatiquement quand un contrat est signé.</Empty>}
       </div>
       {openId && <ChantierModal id={openId} onClose={() => { setOpenId(null); reload(); notifyBadges(); }} />}
+      {creating && <NewChantier onClose={() => setCreating(false)} onCreated={id => { setCreating(false); reload(); notifyBadges(); setOpenId(id); }} />}
     </div>
+  );
+}
+
+function NewChantier({ onClose, onCreated }) {
+  const { data: clients } = useLoad(() => api.clients.list());
+  const [clientId, setClientId] = useState('');
+  const { data: client } = useLoad(() => (clientId ? api.clients.get(clientId) : Promise.resolve(null)), [clientId]);
+  const [f, setF] = useState({ titre: '', opportunite_id: '', statut: 'contrat_signe', date_debut: '', notes_inspection: '', materiaux: '' });
+  const [err, setErr] = useState('');
+  const set = (k, v) => setF(x => ({ ...x, [k]: v }));
+  const submit = async e => {
+    e.preventDefault(); setErr('');
+    if (!clientId) { setErr('Choisis un client'); return; }
+    try { const r = await api.chantiers.create({ ...f, client_id: Number(clientId), opportunite_id: f.opportunite_id || null, titre: f.titre || 'Chantier' }); onCreated(r.id); }
+    catch (ex) { setErr(ex.message); }
+  };
+  return (
+    <Modal title="Nouveau chantier" onClose={onClose} onSubmit={submit} width={600}
+      footer={<><button type="button" style={btnGhost} onClick={onClose}>Annuler</button><button type="submit" style={btnAccent}>Créer le chantier</button></>}>
+      <ErrorNote>{err}</ErrorNote>
+      <Field label="Client"><ClientPicker clients={clients || []} value={clientId} onChange={v => { setClientId(v); set('opportunite_id', ''); }} autoFocus /></Field>
+      {client?.opportunites?.length > 0 && (
+        <Field label="Projet lié (optionnel)">
+          <select style={inputStyle} value={f.opportunite_id} onChange={e => { set('opportunite_id', e.target.value); const o = client.opportunites.find(x => String(x.id) === e.target.value); if (o && !f.titre) set('titre', o.titre); }}>
+            <option value="">— aucun —</option>
+            {client.opportunites.map(o => <option key={o.id} value={o.id}>{o.titre}{o.valeur ? ` — ${Math.round(o.valeur)} $` : ''}</option>)}
+          </select>
+        </Field>
+      )}
+      <Field label="Titre"><input style={inputStyle} value={f.titre} onChange={e => set('titre', e.target.value)} placeholder="Ex. Protection Noxnano — toiture principale" /></Field>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <Field label="Étape">
+          <select style={inputStyle} value={f.statut} onChange={e => set('statut', e.target.value)}>{CH_STATUTS.map(([k, label]) => <option key={k} value={k}>{label}</option>)}</select>
+        </Field>
+        <Field label="Date de début"><input type="date" style={inputStyle} value={f.date_debut} onChange={e => set('date_debut', e.target.value)} /></Field>
+      </div>
+      <Field label="Notes d’inspection"><textarea style={textareaStyle} rows={3} value={f.notes_inspection} onChange={e => set('notes_inspection', e.target.value)} /></Field>
+      <Field label="Matériaux"><textarea style={textareaStyle} rows={2} value={f.materiaux} onChange={e => set('materiaux', e.target.value)} /></Field>
+    </Modal>
   );
 }
 

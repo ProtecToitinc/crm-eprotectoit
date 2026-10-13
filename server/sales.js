@@ -59,8 +59,10 @@ async function runRelances() {
       if (age >= days && await upsertTask({ key: `quote-r${n}:${q.id}`, titre: `${label} la soumission ${q.reference} — ${nom(q)}`, description: `Envoyée il y a ${Math.floor(age)} jours · ${q.montant || 0} $`, due_date: today, client_id: q.client_id, quote_id: q.id, opportunite_id: q.opportunite_id, type: 'soumission_relance', priorite: n === 1 ? 'normale' : 'haute' })) created++;
     }
   }
-  // 5) Contrat signé -> chantier à planifier
-  for (const o of await db.all(`SELECT o.*, c.prenom, c.nom FROM opportunites o JOIN clients c ON c.id=o.client_id WHERE o.etape='contrat'`)) {
+  // 5) Contrat signé -> chantier à planifier (seulement les contrats passés au stade « contrat » depuis l'activation ; un chantier supprimé ne revient jamais)
+  const removed = new Set(JSON.parse((await getSetting('chantiers_supprimes')) || '[]'));
+  for (const o of await db.all(`SELECT o.*, c.prenom, c.nom FROM opportunites o JOIN clients c ON c.id=o.client_id WHERE o.etape='contrat' AND datetime(o.updated_at) >= datetime(?)`, [since])) {
+    if (removed.has(o.id)) continue;
     let ch = await db.get('SELECT id FROM chantiers WHERE opportunite_id=?', [o.id]);
     if (!ch) {
       const quote = await db.get("SELECT id FROM quotes WHERE opportunite_id=? ORDER BY id DESC LIMIT 1", [o.id]);
@@ -77,6 +79,7 @@ async function runRelances() {
   await closeTasks("type='soumission_relance' AND quote_id IN (SELECT id FROM quotes WHERE statut<>'envoyee')", []);
   await closeTasks("type='chantier' AND opportunite_id IN (SELECT opportunite_id FROM chantiers WHERE statut<>'contrat_signe')", []);
   await closeTasks("type='chantier' AND opportunite_id IN (SELECT id FROM opportunites WHERE etape<>'contrat')", []);
+  await closeTasks("type='chantier' AND opportunite_id NOT IN (SELECT opportunite_id FROM chantiers WHERE opportunite_id IS NOT NULL)", []);
   return { created };
 }
 
@@ -238,9 +241,16 @@ function register(app, { auth, upload, uploadsDir }) {
     res.json({ ...ch, photos: await db.all('SELECT * FROM chantier_photos WHERE chantier_id=? ORDER BY id DESC', [ch.id]) });
   });
   app.post('/api/chantiers', auth, async (req, res) => {
-    const { client_id, opportunite_id, titre } = req.body || {};
-    if (!client_id || !(await db.get('SELECT id FROM clients WHERE id=?', [client_id]))) return res.status(400).json({ message: 'Client requis' });
-    const r = await db.run('INSERT INTO chantiers (client_id,opportunite_id,titre,statut) VALUES (?,?,?,?)', [client_id, opportunite_id || null, String(titre || 'Chantier').slice(0, 200), 'contrat_signe']);
+    const b = req.body || {};
+    if (!b.client_id || !(await db.get('SELECT id FROM clients WHERE id=?', [b.client_id]))) return res.status(400).json({ message: 'Choisis un client' });
+    const statut = CHANTIER_STATUTS.includes(b.statut) ? b.statut : 'contrat_signe';
+    let oppId = b.opportunite_id || null;
+    if (oppId && !(await db.get('SELECT id FROM opportunites WHERE id=? AND client_id=?', [oppId, b.client_id]))) oppId = null;
+    if (oppId && (await db.get('SELECT id FROM chantiers WHERE opportunite_id=?', [oppId]))) return res.status(409).json({ message: 'Cette opportunité a déjà un chantier' });
+    const text = v => (String(v || '').trim().slice(0, 4000) || null);
+    const r = await db.run('INSERT INTO chantiers (client_id,opportunite_id,titre,statut,date_debut,date_fin,notes_inspection,materiaux) VALUES (?,?,?,?,?,?,?,?)',
+      [b.client_id, oppId, String(b.titre || 'Chantier').trim().slice(0, 200) || 'Chantier', statut, /^\d{4}-\d{2}-\d{2}$/.test(b.date_debut || '') ? b.date_debut : null, /^\d{4}-\d{2}-\d{2}$/.test(b.date_fin || '') ? b.date_fin : null, text(b.notes_inspection), text(b.materiaux)]);
+    await addHistory(b.client_id, 'chantier', 'Chantier ajouté');
     res.status(201).json({ id: r.lastID });
   });
   app.put('/api/chantiers/:id', auth, async (req, res) => {
@@ -260,7 +270,26 @@ function register(app, { auth, upload, uploadsDir }) {
     }
     res.json({ ok: true });
   });
-  app.delete('/api/chantiers/:id', auth, async (req, res) => { await db.run('DELETE FROM chantiers WHERE id=?', [req.params.id]); res.json({ ok: true }); });
+  const forget = async rows => {
+    const ids = new Set(JSON.parse((await getSetting('chantiers_supprimes')) || '[]'));
+    for (const r of rows) if (r.opportunite_id) ids.add(r.opportunite_id);
+    await setSetting('chantiers_supprimes', JSON.stringify([...ids]));
+  };
+  // Tout effacer (confirmation écrite obligatoire) ; les photos sont supprimées avec les chantiers
+  app.delete('/api/chantiers', auth, async (req, res) => {
+    if (req.body?.confirm !== 'EFFACER') return res.status(400).json({ message: 'Confirmation manquante' });
+    const rows = await db.all('SELECT id,opportunite_id FROM chantiers');
+    for (const p of await db.all('SELECT chemin FROM chantier_photos')) fs.rmSync(path.join(uploadsDir, path.basename(p.chemin)), { force: true });
+    await forget(rows);
+    await db.run('DELETE FROM chantiers');
+    await closeTasks("type='chantier'", []);
+    res.json({ ok: true, deleted: rows.length });
+  });
+  app.delete('/api/chantiers/:id', auth, async (req, res) => {
+    const cur = await db.get('SELECT id,opportunite_id FROM chantiers WHERE id=?', [req.params.id]);
+    if (cur) { await forget([cur]); await db.run('DELETE FROM chantiers WHERE id=?', [cur.id]); }
+    res.json({ ok: true });
+  });
   app.post('/api/chantiers/:id/photos', auth, upload.single('file'), async (req, res) => {
     const ch = await db.get('SELECT id,client_id FROM chantiers WHERE id=?', [req.params.id]);
     if (!ch) { if (req.file) fs.rmSync(req.file.path, { force: true }); return res.status(404).json({ message: 'Chantier introuvable' }); }
