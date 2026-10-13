@@ -9,6 +9,7 @@ const { STAGES, SERVICES, QUOTE_STATUSES, INVOICE_STATUSES } = require('./consta
 const google = require('./google');
 const security = require('./security');
 const backup = require('./backup');
+const sales = require('./sales');
 const { migrateSecrets, redactUrl } = require('./lib');
 
 const app = express();
@@ -746,6 +747,7 @@ const integrations = require('./integrations-setup');
 integrations.register(app, { auth });
 security.registerAudit(app);
 backup.register(app, { auth, uploadsDirs: [uploadsDir, legacyUploadsDir] });
+sales.register(app, { auth, upload, uploadsDir });
 
 // Route API inconnue → JSON (et non la page React)
 app.use('/api', (req, res) => res.status(404).json({ message: 'Route introuvable' }));
@@ -775,6 +777,7 @@ db.init().then(async () => {
     if (process.env.DISABLE_JOBS !== '1') {
       integrations.startJobs();
       backup.startJob();
+      sales.startJobs();
       setInterval(() => security.purgeExpired().catch(() => {}), 6 * 3600 * 1000).unref();
     }
   });

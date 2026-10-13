@@ -368,6 +368,7 @@ function register(app, { auth }) {
   app.get('/api/integrations', auth, async (req, res) => {
     const token = await getSetting('meta_page_token');
     res.json({
+      ads: { accountId: await setting('meta_ad_account_id'), hasToken: !!(await getSetting('meta_ads_token')), lastOk: await setting('ads_last_ok'), lastError: await setting('ads_last_error') },
       meta: { pageId: await setting('meta_page_id'), hasToken: !!token, lastOk: await setting('meta_last_ok'), lastError: await setting('meta_last_error') },
       notifications: { emails: await setting('notify_emails', 'info@eprotectoit.com') },
       webhook: { configured: !!(await getSetting('leads_webhook_key')) },
@@ -381,6 +382,12 @@ function register(app, { auth }) {
       await set('meta_page_id', b.metaPageId);
     }
     if ('metaPageToken' in b && b.metaPageToken) await setSecret('meta_page_token', short(b.metaPageToken, 4000));
+    if ('metaAdAccountId' in b) {
+      const id = String(b.metaAdAccountId || '').replace(/^act_/, '');
+      if (id && !/^d+$/.test(id)) return res.status(400).json({ message: 'ID de compte publicitaire invalide' });
+      await set('meta_ad_account_id', id);
+    }
+    if ('metaAdsToken' in b && b.metaAdsToken) await setSecret('meta_ads_token', short(b.metaAdsToken, 4000));
     if ('notifyEmails' in b) {
       const list = short(b.notifyEmails, 1000).split(/[;,\s]+/).filter(Boolean);
       if (list.some(x => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x))) return res.status(400).json({ message: 'Adresse courriel invalide' });
