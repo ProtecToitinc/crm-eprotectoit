@@ -171,3 +171,52 @@ test('résolution manuelle : lier, puis activation automatique seulement quand t
   assert.equal((await db.get('SELECT COUNT(*) n FROM opportunites WHERE client_id=3')).n, 1);
   assert.equal((await drive.status()).review.length, 0);
 });
+
+test('fichier illisible (pas un classeur) : erreur claire, pas de plantage', async () => {
+  await assert.rejects(() => drive.parseContract(Buffer.from('<html>erreur</html>')), e => e.unreadable === true && /illisible/i.test(e.message));
+  await assert.rejects(() => drive.parseContract(Buffer.alloc(0)), e => e.unreadable === true && /vide/i.test(e.message));
+});
+
+test('montants d’essai (moins de 100 $) ignorés', async () => {
+  const p = await drive.parseContract(await contract({ nom: 'Essai', prenom: 'Gabarit', travaux: 2.22, total: 2.55 }));
+  assert.equal(p.travaux, null); assert.equal(p.total, null);
+});
+
+test('contrat au numéro inconnu pour un client déjà importé : à valider, puis « mettre à jour l’ancienne »', async () => {
+  await db.run("INSERT INTO clients (id,nom,prenom,telephone,notes) VALUES (20,'Revision','Rita','514-777-0000','Importé Drive')");
+  await db.run("INSERT INTO opportunites (id,client_id,titre,etape,valeur,notes) VALUES (20,20,'Protection Toiture - X','soumission',1000,'Soumission #10 - Importé Drive')");
+  await db.run("INSERT INTO quotes (id,reference,client_id,opportunite_id,montant,statut,notes) VALUES (20,'SOU-2026-0900',20,20,1149.75,'envoyee','Soumission #10 - Importé Drive')");
+  addFolder('F20', 'Rita Revision'); await addFile('F20', 'X20', 'Rita Contrat.xlsx', await contract({ numero: 11, nom: 'Revision', prenom: 'Rita', tel: '5147770000', adresse: '5 rue Rev', travaux: 1500, total: 1724.63 }));
+  const before = [await count('opportunites'), await count('quotes')];
+  await drive.sync({ dry: false, full: true });
+  const item = await db.get("SELECT * FROM drive_items WHERE drive_id='X20'");
+  assert.equal(item.status, 'validation'); assert.match(item.message, /nouvelle soumission ou mise à jour/i);
+  assert.deepEqual([await count('opportunites'), await count('quotes')], before, 'rien créé avant ton choix');
+  const r = await drive.resolveItem('X20', { action: 'maj' });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepEqual([await count('opportunites'), await count('quotes')], before, 'mise à jour, pas de doublon');
+  assert.match((await db.get('SELECT notes FROM opportunites WHERE id=20')).notes, /#11/);
+  assert.equal((await db.get('SELECT montant FROM quotes WHERE id=20')).montant, 1724.63);
+});
+
+test('copie du gabarit : aucune soumission ni montant créés', async () => {
+  addFolder('F21', 'Gabi Test'); await addFile('F21', 'X21', 'Copy of Gabarit Contrat.xlsx', await contract({ numero: 300, nom: 'Test', prenom: 'Gabi', tel: '5145558888', travaux: 2700, total: 3104.33 }));
+  const q = await count('quotes');
+  await drive.sync({ dry: false, full: true });
+  assert.equal(await count('quotes'), q);
+  const c = await db.get("SELECT id FROM clients WHERE prenom='Gabi'");
+  assert.ok(c, 'le client est créé');
+  assert.equal((await db.get('SELECT etape,valeur FROM opportunites WHERE client_id=?', [c.id])).etape, 'lead');
+});
+
+test('formules sans résultat enregistré (fichiers convertis par Google) : calculées localement', async () => {
+  const wb = new ExcelJS.Workbook(); const s = wb.addWorksheet('Soumission');
+  s.getCell('J2').value = 140; s.getCell('E6').value = 'Formule'; s.getCell('H6').value = 'Test'; s.getCell('E8').value = '1 rue F';
+  s.getCell('A58').value = 'Protection Noxnano'; s.getCell('G58').value = { formula: '1200*1.65' };
+  s.getCell('A59').value = 'Rabais'; s.getCell('G59').value = { formula: '-500' };
+  s.getCell('G67').value = { formula: 'G58+G59+G60+G62+G61' };
+  s.getCell('G69').value = { formula: 'G67*0.05' }; s.getCell('G71').value = { formula: 'G67*0.09975' };
+  s.getCell('G73').value = { formula: 'G67+G69+G71' }; s.getCell('J75').value = { formula: 'G73+I73' };
+  const p = await drive.parseContract(Buffer.from(await wb.xlsx.writeBuffer()));
+  assert.equal(p.travaux, 1480); assert.equal(p.total, 1701.63);
+});

@@ -51,12 +51,70 @@ const fmtPostal = v => {
 const hasNumero = (notes, numero) => !!clean(numero) && new RegExp(`soumission\\s*#\\s*${escapeRe(clean(numero))}(?!\\d)`, 'i').test(String(notes || ''));
 const anyNumero = notes => /soumission\s*#\s*\d+/i.test(String(notes || ''));
 
+// ---- Formules sans résultat enregistré (fichiers produits par la conversion Google) : petit évaluateur sûr, sans eval ----
+const colNum = letters => letters.toUpperCase().split('').reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0);
+function evalFormula(sheet, formula, depth = 0) {
+  if (depth > 12) throw new Error('formule circulaire');
+  const src = String(formula).replace(/^=/, '').replace(/\$/g, '');
+  const tokens = [];
+  const re = /\s*(?:(\d+(?:\.\d+)?)(%?)|([A-Za-z]+\d+:[A-Za-z]+\d+)|([A-Za-z]+\d+)|([A-Za-z]+)(?=\()|([()+\-*\/,]))/y;
+  let m, pos = 0;
+  while (pos < src.length && src.slice(pos).trim()) {
+    re.lastIndex = pos; m = re.exec(src);
+    if (!m) throw new Error('formule non prise en charge');
+    pos = re.lastIndex;
+    tokens.push(m[1] !== undefined ? { t: 'num', v: Number(m[1]) / (m[2] ? 100 : 1) } : m[3] ? { t: 'range', v: m[3] } : m[4] ? { t: 'ref', v: m[4] } : m[5] ? { t: 'fn', v: m[5].toUpperCase() } : { t: 'op', v: m[6] });
+  }
+  let i = 0;
+  const peek = () => tokens[i], next = () => tokens[i++];
+  const num = addr => {
+    const cell = sheet.getCell(addr), v = cell.value;
+    if (v == null || v === '') return 0;
+    if (typeof v === 'number') return v;
+    if (typeof v === 'object' && 'formula' in v) {
+      if ('result' in v) { if (typeof v.result === 'number') return v.result; throw new Error('résultat invalide'); }
+      return evalFormula(sheet, v.formula, depth + 1);
+    }
+    throw new Error('texte dans un calcul');
+  };
+  const range = rng => {
+    const [a, b] = rng.split(':'), pa = /([A-Za-z]+)(\d+)/.exec(a), pb = /([A-Za-z]+)(\d+)/.exec(b), out = [];
+    for (let r = +pa[2]; r <= +pb[2]; r++) for (let c = colNum(pa[1]); c <= colNum(pb[1]); c++) out.push(num(sheet.getCell(r, c).address));
+    return out;
+  };
+  function expr() { let v = term(); while (peek() && peek().t === 'op' && '+-'.includes(peek().v)) { const o = next().v; const r = term(); v = o === '+' ? v + r : v - r; } return v; }
+  function term() { let v = unary(); while (peek() && peek().t === 'op' && '*/'.includes(peek().v)) { const o = next().v; const r = unary(); if (o === '/' && r === 0) throw new Error('division par zéro'); v = o === '*' ? v * r : v / r; } return v; }
+  function unary() { if (peek() && peek().t === 'op' && (peek().v === '-' || peek().v === '+')) { const o = next().v; const v = unary(); return o === '-' ? -v : v; } return primary(); }
+  function primary() {
+    const tk = next();
+    if (!tk) throw new Error('formule incomplète');
+    if (tk.t === 'num') return tk.v;
+    if (tk.t === 'ref') return num(tk.v);
+    if (tk.t === 'op' && tk.v === '(') { const v = expr(); if (next()?.v !== ')') throw new Error('parenthèse'); return v; }
+    if (tk.t === 'fn') {
+      if (!['SUM', 'ROUND'].includes(tk.v) || next()?.v !== '(') throw new Error('fonction non prise en charge');
+      const args = [];
+      while (true) {
+        if (peek()?.t === 'range') args.push(...range(next().v)); else args.push(expr());
+        const sep = next();
+        if (sep?.v === ')') break;
+        if (sep?.v !== ',') throw new Error('arguments');
+      }
+      return tk.v === 'SUM' ? args.reduce((a, b) => a + b, 0) : Math.round(args[0] * 10 ** (args[1] || 0)) / 10 ** (args[1] || 0);
+    }
+    throw new Error('formule non prise en charge');
+  }
+  const value = expr();
+  if (i < tokens.length) throw new Error('formule non prise en charge');
+  return value;
+}
 function cellValue(c) {
   if (!c) return '';
   const v = c.value;
   if (v == null) return '';
   if (v instanceof Date) return v.toISOString();
   if (typeof v === 'object') {
+    if ('formula' in v && !('result' in v)) { try { return evalFormula(c.worksheet, v.formula); } catch { return ''; } }
     if ('result' in v) return v.result?.error ? '' : cellValue({ value: v.result });
     if ('text' in v) return v.text;
     if (Array.isArray(v.richText)) return v.richText.map(x => x.text).join('');
@@ -89,9 +147,31 @@ function signature(sheet, row) {
   }
   return false;
 }
+const JSZip = require('jszip');
+/** Charge un .xlsx ; fichier vide / ancien format = erreur « illisible » claire ; images mal formées retirées au besoin. */
+async function loadWorkbook(buffer) {
+  const fail = message => { const e = new Error(message); e.unreadable = true; return e; };
+  if (!buffer || buffer.length < 4) throw fail('Fichier vide');
+  if (buffer[0] !== 0x50 || buffer[1] !== 0x4b) {
+    throw fail(buffer[0] === 0xd0 && buffer[1] === 0xcf ? 'Ancien format .xls : ouvre-le dans Excel et enregistre-le en .xlsx' : 'Fichier illisible (vide, corrompu ou pas un classeur Excel)');
+  }
+  try { const wb = new ExcelJS.Workbook(); await wb.xlsx.load(buffer); return wb; }
+  catch (error) {
+    if (!/anchors|drawing/i.test(String(error?.message))) throw error;
+    // Image mal formée dans le fichier : on retire les dessins, le contrat se lit sans eux.
+    const zip = await JSZip.loadAsync(buffer);
+    for (const name of Object.keys(zip.files)) if (/^xl\/(drawings|media)\//.test(name)) zip.remove(name);
+    for (const name of Object.keys(zip.files)) {
+      if (/^xl\/worksheets\/sheet\d+\.xml$/.test(name)) zip.file(name, (await zip.file(name).async('string')).replace(/<drawing\b[^>]*\/>/g, '').replace(/<legacyDrawing\b[^>]*\/>/g, ''));
+      if (/^xl\/worksheets\/_rels\/sheet\d+\.xml\.rels$/.test(name)) zip.file(name, (await zip.file(name).async('string')).replace(/<Relationship\b[^>]*Target="[^"]*drawings\/[^"]*"[^>]*\/>/g, ''));
+    }
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(await zip.generateAsync({ type: 'nodebuffer' }));
+    return wb;
+  }
+}
 async function parseContract(buffer) {
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(buffer);
+  const workbook = await loadWorkbook(buffer);
   const s = workbook.getWorksheet('Soumission') || workbook.worksheets.find(w => norm(w.name).includes('soumission'));
   if (!s) throw new Error('Feuille Soumission absente');
   const read = (label, address) => clean(lookup(s, label, address));
@@ -117,8 +197,9 @@ async function parseContract(buffer) {
   let works = amount === null ? (items.length ? items.reduce((a, x) => a + x.price, 0) : null) : amount;
   let travaux = works === null ? null : r2(works + additions);
   let total = grand === null && travaux !== null ? r2(travaux * TAXES) : (grand === null ? null : r2(grand));
-  if (travaux === 0) travaux = null;
-  if (total === 0) total = null;
+  // Moins de 100 $ = montant d'essai ou de gabarit, jamais une vraie soumission.
+  if (travaux !== null && travaux < 100) { if (travaux > 0) warnings.push(`Montant d'essai ignoré (${travaux})`); travaux = null; total = null; }
+  if (total !== null && total < 100) { if (total > 0) warnings.push(`Total d'essai ignoré (${total})`); total = null; }
   // Valeurs aberrantes : mieux vaut aucun montant qu'un montant faux.
   if (travaux !== null && (travaux < 0 || travaux > 500000)) { warnings.push(`Montant des travaux douteux (${travaux})`); travaux = null; total = null; }
   if (total !== null && (total < 0 || total > 600000)) { warnings.push(`Total douteux (${total})`); total = null; }
@@ -264,12 +345,32 @@ async function saveItem(run, item, kind, fields) {
 }
 const virtualId = run => --run.ctx.virtual;
 
+const isDriveOpp = o => /import[ée]\s*drive/i.test(o.notes || '');
+/** Retrouve l'opportunité déjà existante pour ce contrat (lien Drive, numéro, ancienne opportunité sans numéro, choix « mettre à jour »). */
+function findOpp(ctx, file, clientId, parsed, seen) {
+  const clientOpps = ctx.opps.filter(o => o.client_id === clientId);
+  const linkedElsewhere = o => [...ctx.items.values()].some(i => i.opportunite_id === o.id && i.drive_id !== file.id && i.kind === 'file');
+  let opp = (seen?.opportunite_id && clientOpps.find(o => o.id === seen.opportunite_id))
+    || (parsed.numero && clientOpps.find(o => hasNumero(o.notes, parsed.numero)));
+  if (!opp) {
+    // Opportunité sans numéro créée par l'ancien import (ou lead du dossier Drive) : on la reprend au lieu d'en créer une 2e.
+    const legacy = clientOpps.filter(o => !anyNumero(o.notes) && !linkedElsewhere(o) && (isDriveOpp(o) || (o.etape === 'lead' && /^Lead - /.test(o.titre || ''))));
+    if (legacy.length === 1) opp = legacy[0];
+  }
+  if (!opp && seen?.decision === 'maj') {
+    const drive = clientOpps.filter(o => isDriveOpp(o) && !linkedElsewhere(o));
+    if (drive.length === 1) opp = drive[0];
+  }
+  return { opp: opp || null, clientOpps };
+}
+
 /** Aucune transaction : chaque étape est idempotente (rapprochement par numéro / liens Drive), donc une reprise après erreur ne crée pas de doublon. */
 async function storeContract(run, file, folder, parsed, decision) {
   const { ctx, dry } = run;
   const plan = [];
   const seen = ctx.items.get(file.id);
   const prior = parseJson(seen?.snapshot);
+  const force = seen?.decision === 'maj'; // l'utilisateur a choisi de mettre à jour l'ancienne soumission avec ce contrat
   const values = { prenom: parsed.prenom, nom: parsed.nom || '', adresse: parsed.adresse, ville: parsed.ville, code_postal: fmtPostal(parsed.code_postal), telephone: fmtPhone(parsed.telephone), email: parsed.email };
 
   let clientId = decision.id;
@@ -291,19 +392,15 @@ async function storeContract(run, file, folder, parsed, decision) {
   }
 
   // ----- opportunité -----
-  const clientOpps = ctx.opps.filter(o => o.client_id === clientId);
-  const linkedElsewhere = o => [...ctx.items.values()].some(i => i.opportunite_id === o.id && i.drive_id !== file.id && i.kind === 'file');
-  let opp = (seen?.opportunite_id && clientOpps.find(o => o.id === seen.opportunite_id))
-    || (parsed.numero && clientOpps.find(o => hasNumero(o.notes, parsed.numero)));
-  if (!opp) {
-    // Opportunité sans numéro créée par l'ancien import (ou lead du dossier Drive) : on la reprend au lieu d'en créer une 2e.
-    const legacy = clientOpps.filter(o => !anyNumero(o.notes) && !linkedElsewhere(o) && (/import[ée]\s*drive/i.test(o.notes || '') || (o.etape === 'lead' && /^Lead - /.test(o.titre || ''))));
-    if (legacy.length === 1) opp = legacy[0];
-  }
+  const { opp: foundOpp, clientOpps } = findOpp(ctx, file, clientId, parsed, seen);
+  let opp = foundOpp;
+  const oppExisted = !!opp;
   const priced = (parsed.total || 0) > 0 || (parsed.travaux || 0) > 0;
   const oppNotes = parsed.numero ? `Soumission #${parsed.numero} - Importé Drive` : 'Importé Drive';
-  let oppId;
-  if (!opp) {
+  let oppId = null;
+  if (!opp && !priced && clientOpps.length) {
+    // Contrat sans montants (ex. copie du gabarit) pour un client qui a déjà un dossier : on lie seulement le document.
+  } else if (!opp) {
     plan.push(`Créer l'opportunité (${parsed.signe ? 'contrat signé' : priced ? 'soumission' : 'lead, sans montants'}, ${parsed.travaux ?? '—'} $)`);
     const row = { client_id: clientId, titre: `Protection Toiture - ${parsed.service}`, service: parsed.service, notes: oppNotes, etape: parsed.signe ? 'contrat' : priced ? 'soumission' : 'lead', valeur: parsed.travaux };
     oppId = dry ? virtualId(run) : await insert('opportunites', row);
@@ -314,7 +411,8 @@ async function storeContract(run, file, folder, parsed, decision) {
     const rank = stageRank(opp.etape);
     if (parsed.signe && rank >= 0 && rank < stageRank('contrat')) update.etape = 'contrat';
     else if (rank === 0 && priced) update.etape = 'soumission';
-    if (parsed.travaux != null && parsed.travaux > 0 && (opp.valeur == null || Number(opp.valeur) === 0 || (prior.travaux != null && Number(opp.valeur) === Number(prior.travaux) && Number(opp.valeur) !== parsed.travaux))) update.valeur = parsed.travaux;
+    if (force && parsed.numero && !hasNumero(opp.notes, parsed.numero)) update.notes = oppNotes;
+    if (parsed.travaux != null && parsed.travaux > 0 && (force || opp.valeur == null || Number(opp.valeur) === 0 || (prior.travaux != null && Number(opp.valeur) === Number(prior.travaux) && Number(opp.valeur) !== parsed.travaux))) update.valeur = parsed.travaux;
     if (!opp.service) update.service = parsed.service;
     if (parsed.numero && !anyNumero(opp.notes) && (!opp.notes || /^import[ée]\s*drive$/i.test(clean(opp.notes)) || /^soumission\s*#\s*[-?]?\s*-?\s*import/i.test(clean(opp.notes)))) update.notes = oppNotes;
     if (Object.keys(update).length) {
@@ -333,10 +431,11 @@ async function storeContract(run, file, folder, parsed, decision) {
     const onOpp = clientQuotes.filter(x => x.opportunite_id === oppId && !takenByOtherFile(x));
     quote = onOpp.length === 1 ? onOpp[0] : null;
   }
-  if (!quote) {
+  if (!quote && oppExisted) {
     // Ancien import : soumission sans numéro ni lien. On la reprend si le montant correspond ou si c'est la seule non liée.
+    // Seulement si le montant correspond (sinon c'est une autre soumission, pas l'ancienne).
     const loose = clientQuotes.filter(x => !x.opportunite_id && !anyNumero(x.notes) && !takenByOtherFile(x));
-    quote = loose.find(x => parsed.total != null && Math.abs(Number(x.montant) - parsed.total) < 0.015) || (loose.length === 1 ? loose[0] : null);
+    quote = loose.find(x => parsed.total != null && Math.abs(Number(x.montant) - parsed.total) < 0.015) || (parsed.total == null && loose.length === 1 ? loose[0] : null);
   }
   let quoteId = null;
   if (!quote && !priced) {
@@ -350,7 +449,8 @@ async function storeContract(run, file, folder, parsed, decision) {
     quoteId = quote.id;
     const update = {};
     if (parsed.signe && ['brouillon', 'envoyee'].includes(quote.statut)) update.statut = 'acceptee';
-    if (parsed.total != null && (quote.montant == null || Number(quote.montant) === 0 || (prior.total != null && Number(quote.montant) === Number(prior.total) && Number(quote.montant) !== parsed.total))) update.montant = parsed.total;
+    if (force && parsed.numero && !hasNumero(quote.notes, parsed.numero)) update.notes = oppNotes;
+    if (parsed.total != null && (force || quote.montant == null || Number(quote.montant) === 0 || (prior.total != null && Number(quote.montant) === Number(prior.total) && Number(quote.montant) !== parsed.total))) update.montant = parsed.total;
     if (!quote.opportunite_id) update.opportunite_id = oppId;
     if (!quote.notes) update.notes = oppNotes;
     if (Object.keys(update).length) {
@@ -401,7 +501,8 @@ async function storeFolder(run, folder, decision) {
 /** Une version plus ancienne du même contrat (même adresse, numéro plus petit) ne doit pas créer une 2e soumission. */
 function findSuperseded(parsedList, ctx) {
   const superseded = new Map(), revisions = new Map();
-  const key = p => normName(p.adresse);
+  // Même adresse ET même personne (téléphone ou nom) : sinon deux clients à la même adresse seraient confondus.
+  const key = p => (normName(p.adresse) ? `${normName(p.adresse)}|${phoneKey(p.telephone) || normName([p.prenom, p.nom].join(' '))}` : '');
   const imported = x => ctx.items.get(x.file.id)?.status === 'ok' || ctx.opps.some(o => hasNumero(o.notes, x.parsed.numero));
   for (const a of parsedList) {
     if (!a.parsed.numero || !key(a.parsed)) continue;
@@ -432,6 +533,8 @@ async function processFolderOnly(run, folder) {
 async function processParsed(run, file, folder, parsed, superseded, revisionOf) {
   const { ctx, result, dry } = run;
   const seen = ctx.items.get(file.id);
+  // Copie du gabarit : les montants sont ceux du modèle, jamais ceux d'un client.
+  if (/gabarit/i.test(file.name)) parsed = { ...parsed, travaux: null, total: null, pi2: null, superficie_m2: null, signe: false };
   if (seen?.decision === 'ignorer') { result.unchanged++; return; }
   if (superseded && seen?.decision !== 'creer' && seen?.decision !== 'lier') {
     result.ignored = (result.ignored || 0) + 1;
@@ -443,6 +546,15 @@ async function processParsed(run, file, folder, parsed, superseded, revisionOf) 
   if (revisionOf && !decision.review && decision.id && !['ajouter', 'creer', 'lier'].includes(seen?.decision)) {
     decision.review = true; decision.candidates = [decision.id];
     decision.reason = `Nouvelle version (#${parsed.numero}) d'un contrat déjà importé (#${revisionOf}) : l'ajouter comme nouvelle soumission ou l'ignorer?`;
+  }
+  if (!decision.review && decision.id && !['ajouter', 'maj', 'creer', 'lier'].includes(seen?.decision) && (parsed.travaux || parsed.total)) {
+    const { opp, clientOpps } = findOpp(ctx, file, decision.id, parsed, seen);
+    const known = clientOpps.filter(isDriveOpp);
+    if (!opp && known.length) {
+      decision.review = true; decision.candidates = [decision.id];
+      const nums = known.map(o => (/soumission\s*#\s*(\d+)/i.exec(o.notes || '') || [])[1] || '?').join(', ');
+      decision.reason = `Ce contrat (#${parsed.numero || '?'}) ne correspond à aucune soumission connue de ce client (déjà au dossier : #${nums}). Nouvelle soumission ou mise à jour de l'ancienne?`;
+    }
   }
   const detail = { kind: 'file', id: file.id, name: file.name, folder: folder?.name, action: decision.review ? 'à valider' : decision.id ? 'rapproché' : 'créé', client_id: decision.id || null, reason: decision.reason, preview: { ...parsed, raw: undefined } };
   if (decision.review) {
@@ -481,13 +593,13 @@ async function sync({ dry = true, full = false, limit = 0 } = {}) {
     const last = await getSetting('drive_last_sync');
     const cutoff = !full && last ? Date.parse(last) - 10 * 60 * 1000 : 0;
     let encountered = 0;
+    const parsedAll = [], folderOnly = [];
     for (const folder of sources) {
       progress.name = folder.name;
       const files = await listAll(drive, `'${q(folder.id)}' in parents and trashed=false`);
       const sheets = files.filter(isSheet);
       const asFolder = folder.root ? null : folder;
-      if (!sheets.length && !folder.root) await processFolderOnly(run, folder);
-      const parsedList = [];
+      if (!sheets.length && !folder.root) folderOnly.push(folder);
       for (const file of sheets) {
         if (limit > 0 && encountered >= limit) break;
         encountered++;
@@ -495,24 +607,36 @@ async function sync({ dry = true, full = false, limit = 0 } = {}) {
         if (!full && seen?.status === 'ok' && seen.modified_time === file.modifiedTime) { result.unchanged++; continue; }
         if (seen?.status === 'ignore' && seen.modified_time === file.modifiedTime) { result.unchanged++; continue; }
         if (cutoff && Date.parse(file.modifiedTime) < cutoff && seen?.status === 'ok') { result.unchanged++; continue; }
-        try { parsedList.push({ file, parsed: await parseContract(await fetchExcel(drive, file)) }); }
+        try { parsedAll.push({ file, folder: asFolder, parsed: await parseContract(await fetchExcel(drive, file)) }); }
         catch (error) {
-          result.errors++;
-          result.details.push({ kind: 'file', id: file.id, name: file.name, action: 'erreur', reason: safeError(error) });
-          await saveItem(run, file, 'file', { status: 'erreur', message: safeError(error) }).catch(() => {});
-        }
-      }
-      const { superseded, revisions } = findSuperseded(parsedList, ctx);
-      for (const { file, parsed } of parsedList) {
-        try { await processParsed(run, file, asFolder, parsed, superseded.get(file.id), revisions.get(file.id)); }
-        catch (error) {
-          result.errors++;
-          result.details.push({ kind: 'file', id: file.id, name: file.name, action: 'erreur', reason: safeError(error) });
-          await saveItem(run, file, 'file', { status: 'erreur', message: safeError(error) }).catch(() => {});
+          if (error?.unreadable) {
+            result.unreadable = (result.unreadable || 0) + 1;
+            result.details.push({ kind: 'file', id: file.id, name: file.name, folder: folder.name, action: 'illisible', reason: safeError(error) });
+            await saveItem(run, file, 'file', { status: 'ignore', message: safeError(error) }).catch(() => {});
+          } else {
+            result.errors++;
+            result.details.push({ kind: 'file', id: file.id, name: file.name, action: 'erreur', reason: safeError(error) });
+            await saveItem(run, file, 'file', { status: 'erreur', message: safeError(error) }).catch(() => {});
+          }
         }
       }
       progress.done++;
       if (limit > 0 && encountered >= limit) break;
+    }
+    // Phase 2 : décisions prises sur l'ensemble des contrats (versions d'un même contrat dans des dossiers différents)
+    progress = { done: sources.length, total: sources.length, name: 'Rapprochement' };
+    const { superseded, revisions } = findSuperseded(parsedAll, ctx);
+    for (const { file, folder, parsed } of parsedAll) {
+      try { await processParsed(run, file, folder, parsed, superseded.get(file.id), revisions.get(file.id)); }
+      catch (error) {
+        result.errors++;
+        result.details.push({ kind: 'file', id: file.id, name: file.name, action: 'erreur', reason: safeError(error) });
+        await saveItem(run, file, 'file', { status: 'erreur', message: safeError(error) }).catch(() => {});
+      }
+    }
+    for (const folder of folderOnly) {
+      try { await processFolderOnly(run, folder); }
+      catch (error) { result.errors++; result.details.push({ kind: 'folder', id: folder.id, name: folder.name, action: 'erreur', reason: safeError(error) }); }
     }
     if (!dry) {
       const when = new Date().toISOString();
@@ -549,7 +673,7 @@ async function currentRun() {
 async function resolveItem(driveId, { action, client_id }) {
   const item = await db.get('SELECT * FROM drive_items WHERE drive_id=?', [driveId]);
   if (!item) return { ok: false, status: 404, message: 'Élément Drive inconnu' };
-  if (!['lier', 'creer', 'ajouter', 'ignorer'].includes(action)) return { ok: false, status: 400, message: 'Action invalide' };
+  if (!['lier', 'creer', 'ajouter', 'maj', 'ignorer'].includes(action)) return { ok: false, status: 400, message: 'Action invalide' };
   if (action === 'lier' && !(await db.get('SELECT id FROM clients WHERE id=?', [Number(client_id)]))) return { ok: false, status: 400, message: 'Client introuvable' };
   await db.run('UPDATE drive_items SET decision=?, client_id=?, message=? WHERE drive_id=?', [action, action === 'lier' ? Number(client_id) : null, `Choix manuel : ${action}`, driveId]);
   if (action === 'ignorer') { await db.run("UPDATE drive_items SET status='ignore', message='Ignoré par vous' WHERE drive_id=?", [driveId]); return { ok: true }; }
