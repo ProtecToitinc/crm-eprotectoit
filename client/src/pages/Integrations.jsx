@@ -99,7 +99,7 @@ export default function Integrations() {
         {progress && <p role="status" style={{ marginTop: 12, color: 'var(--accent)', fontWeight: 700 }}>Analyse en cours… {progress.done}/{progress.total} dossiers{progress.name ? ` (${progress.name})` : ''}. Tu peux laisser la page ouverte.</p>}
         {preview && !progress && (
           <div style={{ marginTop: 14 }}>
-            <strong>{preview.created} à créer · {preview.matched} rapprochés · {preview.review} à valider · {preview.ignored || 0} ignorés · {preview.errors} erreurs</strong>
+            <strong>{preview.created} à créer · {preview.matched} rapprochés · {preview.review} à valider · {preview.ignored || 0} ignorés · {preview.unreadable || 0} illisibles · {preview.errors} erreurs</strong>
             <details style={{ marginTop: 8 }}><summary style={{ cursor: 'pointer' }}>Voir le détail ({preview.details?.length || 0})</summary>
               <div style={{ maxHeight: 360, overflow: 'auto', marginTop: 8 }}>
                 {preview.details?.filter(x => x.action !== 'rapproché' || x.plan?.length).map((x, i) => (
@@ -125,8 +125,8 @@ export default function Integrations() {
                     {st.clients.map(c => <option key={c.id} value={c.id}>{clientName(c)}</option>)}
                   </select>
                   <button style={btnGhost} disabled={busy || !pick[x.drive_id]} onClick={() => resolve(x.drive_id, 'lier', pick[x.drive_id])}>Lier</button>
-                  {/nouvelle version/i.test(x.message || '') && <button style={btnGhost} disabled={busy} onClick={() => resolve(x.drive_id, 'ajouter')}>Ajouter comme nouvelle soumission</button>}
-                  {!/nouvelle version/i.test(x.message || '') && <button style={btnGhost} disabled={busy} onClick={() => window.confirm('Créer un nouveau client pour cet élément?') && resolve(x.drive_id, 'creer')}>Créer un nouveau client</button>}
+                  {/nouvelle version|nouvelle soumission ou mise/i.test(x.message || '') && <><button style={btnGhost} disabled={busy} onClick={() => resolve(x.drive_id, 'ajouter')}>Ajouter comme nouvelle soumission</button><button style={btnGhost} disabled={busy} onClick={() => resolve(x.drive_id, 'maj')}>Mettre à jour l’ancienne</button></>}
+                  {!/nouvelle version|nouvelle soumission ou mise/i.test(x.message || '') && <button style={btnGhost} disabled={busy} onClick={() => window.confirm('Créer un nouveau client pour cet élément?') && resolve(x.drive_id, 'creer')}>Créer un nouveau client</button>}
                   <button style={btnGhost} disabled={busy} onClick={() => resolve(x.drive_id, 'ignorer')}>Ignorer</button>
                 </div>
               </div>))}
