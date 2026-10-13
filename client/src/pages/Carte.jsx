@@ -43,7 +43,10 @@ export default function Carte() {
     }).addTo(map.current);
     layer.current = L.layerGroup().addTo(map.current);
     window.__openDeal = id => openDealRef.current(id);
-    return () => { map.current.remove(); map.current = null; };
+    const ro = new ResizeObserver(() => map.current && map.current.invalidateSize());
+    ro.observe(mapEl.current);
+    setTimeout(() => map.current && map.current.invalidateSize(), 300);
+    return () => { ro.disconnect(); map.current.remove(); map.current = null; };
   }, []);
 
   const located = clients.filter(c => c.lat && c.lng);
