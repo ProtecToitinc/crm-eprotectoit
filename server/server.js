@@ -762,6 +762,7 @@ app.get('/api/stats', auth, async (req, res) => {
 // Intégrations Drive / Meta : webhooks protégés par leur clé, routes CRM par auth.
 const integrations = require('./integrations-setup');
 integrations.register(app, { auth });
+require('./performance').register(app, { auth });
 security.registerAudit(app);
 backup.register(app, { auth, uploadsDirs: [uploadsDir, legacyUploadsDir] });
 sales.register(app, { auth, upload, uploadsDir });
