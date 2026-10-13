@@ -1,5 +1,6 @@
-import React from 'react';
-import { NavLink } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
+import { api } from '../api';
 import { LayoutGrid, BarChart3, Calendar, MapPin, Users, FileText, Receipt, Phone, StickyNote, Target, PlugZap } from 'lucide-react';
 
 const PRINCIPAL = [
@@ -19,7 +20,7 @@ const GESTION = [
   { to: '/integrations', icon: PlugZap, label: 'Intégrations' }
 ];
 
-function NavGroup({ title, items, onItemClick }) {
+function NavGroup({ title, items, onItemClick, unread = 0 }) {
   return (
     <>
       <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.14em', color: 'var(--sidebar-muted)', padding: '4px 12px 6px' }}>
@@ -41,6 +42,7 @@ function NavGroup({ title, items, onItemClick }) {
               >
                 <Icon size={18} strokeWidth={1.8} style={{ flexShrink: 0 }} />
                 <span>{label}</span>
+                {to === '/opportunites' && unread > 0 && <span style={{ marginLeft: 'auto', background: 'var(--sidebar-border)', color: isActive ? 'var(--accent-fg)' : 'var(--sidebar-fg)', borderRadius: 12, padding: '2px 7px', fontSize: 11, fontWeight: 800 }} aria-label={`${unread} leads non lus`}>{unread > 99 ? '99+' : unread}</span>}
               </span>
             )}
           </NavLink>
@@ -51,6 +53,17 @@ function NavGroup({ title, items, onItemClick }) {
 }
 
 export default function Sidebar({ mobileOpen, onCloseMobile }) {
+  const [unread, setUnread] = useState(0);
+  const { pathname } = useLocation();
+  useEffect(() => {
+    let cancelled = false;
+    const refresh = () => api.leads.count().then(result => {
+      if (!cancelled) setUnread(Number(result?.count) || 0);
+    }).catch(() => {});
+    refresh();
+    const timer = setInterval(refresh, 60000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [pathname]);
   return (
     <>
       <aside
@@ -65,7 +78,7 @@ export default function Sidebar({ mobileOpen, onCloseMobile }) {
         <div style={{ padding: '2px 8px 22px' }}>
           <img src="/logo-white.png" alt="PROTECTOIT" style={{ width: 152, height: 'auto', display: 'block', objectFit: 'contain' }} />
         </div>
-        <NavGroup title="PRINCIPAL" items={PRINCIPAL} />
+        <NavGroup title="PRINCIPAL" items={PRINCIPAL} unread={unread} />
         <div style={{ height: 10 }} />
         <NavGroup title="GESTION" items={GESTION} />
         <div style={{
@@ -86,7 +99,7 @@ export default function Sidebar({ mobileOpen, onCloseMobile }) {
       {mobileOpen && (
         <div className="md:hidden fixed inset-0 z-30" style={{ background: 'var(--sidebar-bg)', paddingTop: 66, overflowY: 'auto' }}>
           <div style={{ padding: 16 }}>
-            <NavGroup title="PRINCIPAL" items={PRINCIPAL} onItemClick={onCloseMobile} />
+            <NavGroup title="PRINCIPAL" items={PRINCIPAL} unread={unread} onItemClick={onCloseMobile} />
             <div style={{ height: 10 }} />
             <NavGroup title="GESTION" items={GESTION} onItemClick={onCloseMobile} />
           </div>
