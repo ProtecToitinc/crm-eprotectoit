@@ -21,6 +21,11 @@ jobs:
       - name: Install server dependencies
         working-directory: server
         run: npm install --no-audit --no-fund
+      - name: Dependency vulnerability report (non-blocking)
+        working-directory: server
+        run: |
+          npm audit --omit=dev --audit-level=low --json > /tmp/server-audit.json || true
+          node -e 'const a=require("/tmp/server-audit.json"); for(const [k,v] of Object.entries(a.vulnerabilities||{})){ console.log(k+" | "+v.severity+" | fix="+JSON.stringify(v.fixAvailable)+" | via="+(v.via||[]).map(x=>typeof x==="string"?x:x.name+":"+x.range).join(",")); } console.log("TOTALS",JSON.stringify(a.metadata?.vulnerabilities||{}));'
       - name: Validate server source and run tests (isolated temporary databases)
         run: |
           for f in server/*.js; do node --check "$f"; done
