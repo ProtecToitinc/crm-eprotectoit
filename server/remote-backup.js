@@ -14,7 +14,8 @@ function client() {
   return new S3Client({
     endpoint: process.env.BACKUP_S3_ENDPOINT,
     region: process.env.BACKUP_S3_REGION,
-    forcePathStyle: true,
+    // Railway buckets use virtual-host addressing; preserve the endpoint host.
+    forcePathStyle: false,
     credentials: {
       accessKeyId: process.env.BACKUP_S3_ACCESS_KEY_ID,
       secretAccessKey: process.env.BACKUP_S3_SECRET_ACCESS_KEY
