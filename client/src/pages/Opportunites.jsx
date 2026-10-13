@@ -32,8 +32,8 @@ export default function Opportunites({api}) {
     finally{setBusy(false);}
   };
   useEffect(()=>{reload();},[api]);
-  useEffect(()=>{if(api?.leads?.markSeen) api.leads.markSeen().catch(()=>{});},[api]);
   const counts=useMemo(()=>Object.fromEntries(states.map(([key])=>[key,key==='tous'?leads.length:leads.filter(l=>l.statut===key).length])),[leads]);
+  const unreadCount=leads.filter(l=>Number(l.vu)===0).length;
   const shown=useMemo(()=>leads.filter(l=>filter==='tous'||l.statut===filter).filter(l=>[l.prenom,l.nom,l.telephone,l.email,l.ville,l.campagne,l.annonce,l.message].some(v=>String(v||'').toLowerCase().includes(q.toLowerCase()))).sort((a,b)=>{
     if(sort==='nom')return fullName(a).localeCompare(fullName(b),'fr');
     const delta=Date.parse(b.recu_at||b.created_at||0)-Date.parse(a.recu_at||a.created_at||0);
@@ -44,7 +44,7 @@ export default function Opportunites({api}) {
   return <section style={styles.page}>
     <header style={{display:'flex',gap:12,alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',marginBottom:18}}>
       <div><h1 style={{fontSize:28,margin:0}}>Opportunités</h1><p style={styles.muted}>Prospects provenant de Meta Ads et des formulaires connectés</p></div>
-      <div style={{display:'flex',gap:8}}><button style={styles.btn} onClick={reload} disabled={busy}><RefreshCw size={16}/> Actualiser</button><button style={{...styles.btn,background:'var(--accent, #2563eb)',color:'white'}} onClick={()=>setDraft({...empty})}><Plus size={16}/> Ajouter</button></div>
+      <div style={{display:'flex',gap:8,flexWrap:'wrap'}}><span style={styles.muted}>{unreadCount} non lu{unreadCount===1?'':'s'}</span>{unreadCount>0&&<button style={styles.btn} onClick={()=>action(()=>api.leads.markSeen(),'Tous les leads sont marqués comme lus')}>Tout marquer comme lu</button>}<button style={styles.btn} onClick={reload} disabled={busy}><RefreshCw size={16}/> Actualiser</button><button style={{...styles.btn,background:'var(--accent, #2563eb)',color:'white'}} onClick={()=>setDraft({...empty})}><Plus size={16}/> Ajouter</button></div>
     </header>
     <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(135px, 1fr))',gap:10,marginBottom:18}}>
       {states.slice(1,5).map(([k,label])=><div key={k} style={styles.card}><div style={styles.muted}>{label}</div><strong style={{fontSize:26}}>{counts[k]}</strong></div>)}
@@ -60,13 +60,14 @@ export default function Opportunites({api}) {
     <div style={{display:'grid',gap:12}}>
       {shown.map(l=><article key={l.id} style={styles.card}>
         <div style={{display:'flex',alignItems:'start',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
-          <div><strong style={{fontSize:18}}>{fullName(l)}</strong> {l.vu===0&&<span style={{color:'var(--accent, #2563eb)',fontWeight:700}}> ● Nouveau</span>}<p style={{...styles.muted,margin:'7px 0 0'}}>{[l.ville,l.campagne,l.annonce].filter(Boolean).join(' · ')||'Saisie manuelle'}</p></div>
+          <div><strong style={{fontSize:18}}>{fullName(l)}</strong> {Number(l.vu)===0&&<span style={{color:'var(--accent, #2563eb)',fontWeight:700}}> ● Non lu</span>}<p style={{...styles.muted,margin:'7px 0 0'}}>{[l.ville,l.campagne,l.annonce].filter(Boolean).join(' · ')||'Saisie manuelle'}</p></div>
           <select aria-label={`Statut de ${fullName(l)}`} style={{...styles.input,width:160}} value={l.statut||'nouveau'} onChange={e=>edit(l.id,{statut:e.target.value})}>{states.slice(1).map(([k,label])=><option key={k} value={k}>{label}</option>)}</select>
         </div>
         <p style={{display:'flex',gap:18,flexWrap:'wrap'}}>{l.telephone&&<a href={`tel:${l.telephone}`}><Phone size={15}/> {l.telephone}</a>}{l.email&&<a href={`mailto:${l.email}`}><Mail size={15}/> {l.email}</a>}</p>
         {l.message&&<p style={{whiteSpace:'pre-wrap',fontSize:14,background:'var(--surface-2, transparent)',padding:10,borderRadius:8}}>{l.message}</p>}
         <div style={{...styles.muted,marginBottom:12}}>{l.recu_at ? new Date(l.recu_at).toLocaleString('fr-CA') : ''} {l.plateforme&&`· ${l.plateforme}`}</div>
         <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+          {Number(l.vu)===0&&<button style={styles.btn} onClick={()=>edit(l.id,{vu:1})}>Marquer comme lu</button>}
           {l.statut!=='converti'&&<button style={styles.btn} onClick={()=>action(()=>api.leads.convert(l.id),'Prospect converti en client')}><UserPlus size={15}/> Convertir en client</button>}
           {l.telephone&&<a style={styles.btn} href={`tel:${l.telephone}`}>Appeler</a>}
           <button style={{...styles.btn,marginLeft:'auto'}} onClick={()=>{if(window.confirm('Supprimer ce prospect du CRM?'))action(()=>api.leads.remove(l.id),'Lead supprimé');}} title="Supprimer"><Trash2 size={16}/></button>
