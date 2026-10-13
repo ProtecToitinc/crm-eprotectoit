@@ -4,6 +4,7 @@ import { Phone, Check, ArrowUpRight, BellRing, Target, FileText, HardHat } from 
 import { useUI } from '../context/UIContext';
 import { STAGES, SERVICE_HUE, money } from '../constants';
 import { api } from '../api';
+import Performance from '../components/Performance';
 import { parseDay, daysFromToday, relativeDay, timeAgo } from '../lib/dates';
 import { telHref, fullName } from '../lib/search';
 import { iconBtn } from '../components/ui';
@@ -98,6 +99,8 @@ export default function Dashboard() {
           </div>
         ))}
       </div>
+
+      <Performance />
 
       <div className="dash-grid" style={{ marginTop: 16 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
