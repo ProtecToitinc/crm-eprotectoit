@@ -24,7 +24,7 @@ jobs:
       - name: Validate server source and run tests (isolated temporary databases)
         run: |
           for f in server/*.js; do node --check "$f"; done
-          node --test tests/
+          node --test tests/*.test.js
       - name: Smoke-test API on isolated temporary database
         env:
           PORT: '3055'
