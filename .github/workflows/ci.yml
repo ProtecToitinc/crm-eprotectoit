@@ -3,7 +3,7 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: ['feature/drive-meta-leads-2026-10-13']
+    branches: [main]
 jobs:
   test:
     runs-on: ubuntu-latest
