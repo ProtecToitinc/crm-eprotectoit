@@ -7,12 +7,12 @@ import CallModal from './CallModal';
 import NoteModal from './NoteModal';
 import Toast from './Toast';
 
-export default function Layout({ children }) {
+export default function Layout({ children, user, onLogout }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
     <div className="crm-root" style={{ display: 'flex', minHeight: '100vh', background: 'var(--app-bg)', fontSize: 14 }}>
-      <Sidebar mobileOpen={mobileOpen} onCloseMobile={() => setMobileOpen(false)} />
+      <Sidebar mobileOpen={mobileOpen} onCloseMobile={() => setMobileOpen(false)} user={user} onLogout={onLogout} />
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         <Header mobileOpen={mobileOpen} onToggleMobile={() => setMobileOpen(o => !o)} />

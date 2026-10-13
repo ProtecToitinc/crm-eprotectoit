@@ -1,5 +1,6 @@
 const { google } = require('googleapis');
 const db = require('./database');
+const { getSecret, setSecret } = require('./lib');
 
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
@@ -20,13 +21,13 @@ function oauthClient() {
 }
 
 async function getStoredTokens() {
-  const row = await db.get('SELECT value FROM settings WHERE key = ?', ['google_tokens']);
-  return row ? JSON.parse(row.value) : null;
+  const raw = await getSecret('google_tokens'); // chiffré au repos
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
 }
 
 async function saveTokens(tokens) {
-  await db.run('INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',
-    ['google_tokens', JSON.stringify(tokens)]);
+  await setSecret('google_tokens', JSON.stringify(tokens));
 }
 
 async function getAuthedClient() {
@@ -41,10 +42,10 @@ async function getAuthedClient() {
   return client;
 }
 
-function getAuthUrl() {
+function getAuthUrl(state) {
   if (!configured()) throw new Error('Google Calendar non configuré (variables GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET manquantes)');
   const client = oauthClient();
-  return client.generateAuthUrl({ access_type: 'offline', prompt: 'consent', scope: SCOPES, include_granted_scopes: true });
+  return client.generateAuthUrl({ access_type: 'offline', prompt: 'consent', scope: SCOPES, include_granted_scopes: true, ...(state ? { state } : {}) });
 }
 
 async function handleCallback(code) {

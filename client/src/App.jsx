@@ -16,18 +16,27 @@ import Notes from './pages/Notes';
 import Appels from './pages/Appels';
 import Opportunites from './pages/Opportunites';
 import Integrations from './pages/Integrations';
+import ATraiter from './pages/ATraiter';
+import SuiviVentes from './pages/SuiviVentes';
+import Chantiers from './pages/Chantiers';
+import Publicites from './pages/Publicites';
+import Parametres from './pages/Parametres';
 import { api } from './api';
-
-// Référence stable pour éviter une boucle de chargements des intégrations.
-const integrationsApi = { ...api, meta: api.metaAds };
 
 export default function App() {
   const [auth, setAuth] = useState(null);
+  const [user, setUser] = useState(() => { try { return localStorage.getItem('crm_user') || ''; } catch { return ''; } });
+
+  const logout = async () => {
+    try { await api.logout(); } catch { /* session déjà expirée */ }
+    localStorage.removeItem('crm_token');
+    setAuth(false);
+  };
 
   useEffect(() => {
     const token = localStorage.getItem('crm_token');
     if (token) {
-      api.verify(token).then(res => setAuth(res?.ok ? true : false));
+      api.verify(token).then(res => { setAuth(res?.ok ? true : false); if (res?.user) { setUser(res.user); localStorage.setItem('crm_user', res.user); } });
     } else {
       setAuth(false);
     }
@@ -39,12 +48,12 @@ export default function App() {
     </div>
   );
 
-  if (!auth) return <Login onLogin={() => setAuth(true)} />;
+  if (!auth) return <Login onLogin={name => { setUser(name); setAuth(true); }} />;
 
   return (
     <ThemeProvider>
       <UIProvider>
-        <Layout>
+        <Layout user={user} onLogout={logout}>
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/clients" element={<Clients />} />
@@ -56,8 +65,13 @@ export default function App() {
             <Route path="/facturation" element={<Facturation />} />
             <Route path="/notes" element={<Notes />} />
             <Route path="/appels" element={<Appels />} />
-            <Route path="/opportunites" element={<Opportunites api={api} />} />
-            <Route path="/integrations" element={<Integrations api={integrationsApi} />} />
+            <Route path="/opportunites" element={<Opportunites user={user} />} />
+            <Route path="/a-traiter" element={<ATraiter />} />
+            <Route path="/suivi-soumissions" element={<SuiviVentes />} />
+            <Route path="/chantiers" element={<Chantiers />} />
+            <Route path="/publicites" element={<Publicites />} />
+            <Route path="/integrations" element={<Integrations />} />
+            <Route path="/parametres" element={<Parametres />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </Layout>

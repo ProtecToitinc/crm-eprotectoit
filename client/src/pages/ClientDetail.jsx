@@ -213,6 +213,18 @@ export default function ClientDetail() {
               {client.email && <a href={`mailto:${client.email}`} style={{ ...linkStyle, display: 'flex', alignItems: 'center', gap: 5 }}><Mail size={12} />{client.email}</a>}
               {client.ville && <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><MapPin size={12} />{client.ville}</span>}
             </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, fontSize: 12.5, flexWrap: 'wrap' }}>
+              <label style={{ color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                Pris en charge par
+                <select aria-label="Responsable du client" value={client.responsable || ''} onChange={e => act(() => api.clients.setResponsable(client.id, e.target.value || null))}
+                  style={{ ...inputStyle, width: 'auto', height: 30, fontWeight: 700, color: client.responsable ? 'var(--accent)' : 'var(--fg-muted)' }}>
+                  <option value="">— personne —</option>
+                  <option value="Mathys Caron">Mathys Caron</option>
+                  <option value="Ramy Farah">Ramy Farah</option>
+                </select>
+              </label>
+              {client.modifie_par && <span style={{ color: 'var(--fg-faint)' }}>Dernière modification : {client.modifie_par}{client.modifie_at ? ` · ${fmtDbDateTime(client.modifie_at)}` : ''}</span>}
+            </div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

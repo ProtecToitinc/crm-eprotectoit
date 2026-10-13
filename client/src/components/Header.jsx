@@ -17,7 +17,12 @@ const ROUTE_SCREEN = {
   '/notes': 'notes',
   '/appels': 'calls',
   '/opportunites': 'leads',
-  '/integrations': 'integrations'
+  '/integrations': 'integrations',
+  '/a-traiter': 'attention',
+  '/suivi-soumissions': 'salesfollow',
+  '/chantiers': 'jobs',
+  '/publicites': 'ads',
+  '/parametres': 'settings'
 };
 
 export default function Header({ mobileOpen, onToggleMobile }) {

@@ -1,22 +1,27 @@
 import React, { useState } from 'react';
 import { api } from '../api';
 
+const USERS = ['Mathys Caron', 'Ramy Farah'];
+
 export default function Login({ onLogin }) {
+  const [user, setUser] = useState(() => { try { return localStorage.getItem('crm_user') || ''; } catch { return ''; } });
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (!user) { setError('Choisis ton nom.'); return; }
     setLoading(true);
     setError('');
-    const res = await api.login(password);
+    const res = await api.login(password, user);
     setLoading(false);
     if (res?.ok) {
       localStorage.setItem('crm_token', res.token);
-      onLogin();
+      localStorage.setItem('crm_user', res.user || user);
+      onLogin(res.user || user);
     } else {
-      setError('Mot de passe incorrect');
+      setError(res?.message || 'Mot de passe incorrect');
     }
   }
 
@@ -32,20 +37,33 @@ export default function Login({ onLogin }) {
         </div>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#9b958c', marginBottom: 6 }}>Qui es-tu?</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {USERS.map(u => (
+                <button type="button" key={u} onClick={() => setUser(u)} aria-pressed={user === u} style={{
+                  height: 46, borderRadius: 10, fontFamily: 'inherit', fontSize: 13.5, fontWeight: 700, cursor: 'pointer',
+                  border: user === u ? '1px solid #cf8a48' : '1px solid rgba(255,255,255,.12)',
+                  background: user === u ? 'rgba(207,138,72,.18)' : 'rgba(255,255,255,.05)', color: '#efece6'
+                }}>{u}</button>
+              ))}
+            </div>
+          </div>
+          <div>
             <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#9b958c', marginBottom: 6 }}>Mot de passe</label>
             <input
               type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
+              autoComplete="current-password"
               style={{
                 width: '100%', height: 42, padding: '0 13px', borderRadius: 10, fontFamily: 'inherit', fontSize: 13.5,
                 border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#efece6'
               }}
               placeholder="••••••••••"
-              autoFocus
+              autoFocus={!!user}
             />
           </div>
-          {error && <p style={{ color: '#e08877', fontSize: 13, margin: 0 }}>{error}</p>}
+          {error && <p role="alert" style={{ color: '#e08877', fontSize: 13, margin: 0 }}>{error}</p>}
           <button
             type="submit"
             disabled={loading}

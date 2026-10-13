@@ -1,0 +1,115 @@
+'use strict';
+// Tables ajoutées après la version initiale. Idempotent : ne supprime ni ne réécrit aucune donnée existante.
+const db = require('./database');
+
+async function addColumn(table, column, definition) {
+  const cols = await db.all(`PRAGMA table_info(${table})`);
+  if (!cols.some(c => c.name === column)) await db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+}
+
+async function migrate() {
+  // Sécurité : sessions qui expirent, états OAuth à usage unique, journal d'audit
+  await db.run(`CREATE TABLE IF NOT EXISTS sessions (
+    token_hash TEXT PRIMARY KEY,
+    created_ms INTEGER NOT NULL,
+    last_seen_ms INTEGER NOT NULL,
+    ip TEXT,
+    user_agent TEXT
+  )`);
+  await db.run(`CREATE TABLE IF NOT EXISTS oauth_states (
+    state_hash TEXT PRIMARY KEY,
+    expires_ms INTEGER NOT NULL
+  )`);
+  await db.run(`CREATE TABLE IF NOT EXISTS audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    at TEXT NOT NULL DEFAULT (datetime('now')),
+    actor TEXT,
+    ip TEXT,
+    action TEXT NOT NULL,
+    entity TEXT,
+    entity_id INTEGER,
+    before_json TEXT,
+    after_json TEXT,
+    details TEXT
+  )`);
+  await db.run('CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_log(entity, entity_id)');
+  await db.run('CREATE INDEX IF NOT EXISTS idx_audit_at ON audit_log(at)');
+
+  // Deux utilisateurs : chaque session porte un nom ; les fiches clients montrent qui s'en occupe
+  await addColumn('sessions', 'user_name', 'TEXT');
+  for (const [col, def] of [['responsable', 'TEXT'], ['modifie_par', 'TEXT'], ['modifie_at', 'TEXT']]) await addColumn('clients', col, def);
+
+  // Leads : provenance exacte de la publicité, suivi et prise en charge
+  for (const [col, def] of [['campaign_id', 'TEXT'], ['adset_id', 'TEXT'], ['ad_id', 'TEXT'], ['form_name', 'TEXT'],
+    ['dernier_contact', 'TEXT'], ['rappel_at', 'TEXT'], ['tentatives', 'INTEGER NOT NULL DEFAULT 0'],
+    ['en_charge', 'TEXT'], ['en_charge_at', 'TEXT'], ['raison_perte', 'TEXT']]) await addColumn('leads', col, def);
+  await db.run(`CREATE TABLE IF NOT EXISTS lead_notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lead_id INTEGER NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+    contenu TEXT NOT NULL,
+    auteur TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`);
+  await db.run('CREATE INDEX IF NOT EXISTS idx_lead_notes_lead ON lead_notes(lead_id)');
+
+  // Tâches / relances automatiques
+  for (const [col, def] of [['type', "TEXT DEFAULT 'manuel'"], ['source_key', 'TEXT'], ['lead_id', 'INTEGER'], ['quote_id', 'INTEGER'],
+    ['auto', 'INTEGER DEFAULT 0'], ['due_time', 'TEXT']]) await addColumn('taches', col, def);
+  await db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_taches_source_key ON taches(source_key) WHERE source_key IS NOT NULL');
+
+  // Soumissions : suivi des ventes non conclues
+  for (const [col, def] of [['date_envoi', 'TEXT'], ['raison_perte', 'TEXT'], ['prochain_suivi', 'TEXT']]) await addColumn('quotes', col, def);
+
+  // Chantiers (suivi des travaux), photos et rentabilité
+  await db.run(`CREATE TABLE IF NOT EXISTS chantiers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+    opportunite_id INTEGER REFERENCES opportunites(id) ON DELETE SET NULL,
+    quote_id INTEGER REFERENCES quotes(id) ON DELETE SET NULL,
+    titre TEXT NOT NULL,
+    statut TEXT NOT NULL DEFAULT 'contrat_signe',
+    date_debut TEXT,
+    date_fin TEXT,
+    notes_inspection TEXT,
+    materiaux TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  )`);
+  await db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_chantiers_opp ON chantiers(opportunite_id) WHERE opportunite_id IS NOT NULL');
+  await db.run(`CREATE TABLE IF NOT EXISTS chantier_photos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    chantier_id INTEGER NOT NULL REFERENCES chantiers(id) ON DELETE CASCADE,
+    type TEXT NOT NULL DEFAULT 'autre',
+    chemin TEXT NOT NULL,
+    legende TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  )`);
+  await db.run(`CREATE TABLE IF NOT EXISTS rentabilite (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    opportunite_id INTEGER NOT NULL UNIQUE REFERENCES opportunites(id) ON DELETE CASCADE,
+    superficie_pi2 REAL,
+    prix_pi2 REAL,
+    revenu REAL,
+    cout_produits REAL DEFAULT 0,
+    main_oeuvre REAL DEFAULT 0,
+    deplacement REAL DEFAULT 0,
+    autres REAL DEFAULT 0,
+    notes TEXT,
+    updated_at TEXT DEFAULT (datetime('now'))
+  )`);
+
+  // Publicités Meta : dépenses par campagne et par jour (si l'accès aux données publicitaires est autorisé)
+  await db.run(`CREATE TABLE IF NOT EXISTS ad_spend (
+    date TEXT NOT NULL,
+    campaign_id TEXT NOT NULL,
+    campaign_name TEXT,
+    spend REAL DEFAULT 0,
+    impressions INTEGER DEFAULT 0,
+    clicks INTEGER DEFAULT 0,
+    leads INTEGER DEFAULT 0,
+    updated_at TEXT DEFAULT (datetime('now')),
+    PRIMARY KEY (date, campaign_id)
+  )`);
+}
+
+module.exports = { migrate, addColumn };

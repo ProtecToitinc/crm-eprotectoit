@@ -77,7 +77,12 @@ export function titleFor(screen) {
     notes: ['Notes', 'Notes générales et notes par client'],
     calls: ['Appels', 'Journal des appels et rappels'],
     leads: ['Opportunités', 'Leads et demandes Meta Ads'],
-    integrations: ['Intégrations', 'Google Drive, Meta Ads et courriels']
+    integrations: ['Intégrations', 'Google Drive, Meta Ads et courriels'],
+    attention: ['À traiter', 'Ce qui demande ton attention maintenant'],
+    salesfollow: ['Suivi des ventes', 'Soumissions en attente, relances et conversion'],
+    jobs: ['Chantiers', 'De la signature à la facture payée'],
+    ads: ['Publicités Meta', 'Leads, coûts et ventes par campagne'],
+    settings: ['Sécurité et sauvegardes', 'Sauvegardes, historique des modifications et connexions']
   };
   return titles[screen] || ['', ''];
 }
