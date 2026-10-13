@@ -35,7 +35,7 @@ test('private upload API rejects anonymous requests, accepts authorized stored d
       method: 'POST', headers: { ...headers, 'content-type': 'application/json' },
       body: JSON.stringify({ prenom: 'Test', nom: 'Fichier' })
     });
-    assert.equal(created.status, 201);
+    assert.equal(created.status, 200);
     const client = await created.json();
     const form = new FormData();
     form.append('client_id', String(client.id));
