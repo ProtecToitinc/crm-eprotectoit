@@ -1,49 +1,102 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Receipt, Plus } from 'lucide-react';
 import { useUI } from '../context/UIContext';
 import { INVOICE_STATUSES, money, soft } from '../constants';
 import { api } from '../api';
+import { parseDb, fmtDay, fmtDbDay, daysFromToday } from '../lib/dates';
+import { fullName } from '../lib/search';
+import { cmpText, cmpValue, useStoredChoice } from '../lib/sort';
+import { Modal, Field, ClientPicker, SortSelect, inputStyle, btnGhost, btnAccent } from '../components/ui';
 
-const inputStyle = {
-  width: '100%', height: 42, padding: '0 13px', border: '1px solid var(--border)', borderRadius: 10,
-  background: 'var(--surface-2)', color: 'var(--fg)', fontFamily: 'inherit', fontSize: 13.5
-};
-const labelStyle = { fontSize: 12, fontWeight: 700, color: 'var(--fg-muted)', marginBottom: 6 };
+const SORTS = [
+  { value: 'recent', label: 'Plus récentes' },
+  { value: 'ancien', label: 'Plus anciennes' },
+  { value: 'client', label: 'Client A → Z' },
+  { value: 'client_za', label: 'Client Z → A' },
+  { value: 'montant', label: 'Montant (plus élevé)' },
+  { value: 'montant_asc', label: 'Montant (plus petit)' },
+  { value: 'echeance', label: 'Échéance la plus proche' },
+  { value: 'statut', label: 'Statut' }
+];
+
+const STATUS_ORDER = Object.keys(INVOICE_STATUSES);
+const stamp = i => parseDb(i.created_at)?.getTime() ?? 0;
+
+function comparator(sort) {
+  const recent = (a, b) => stamp(b) - stamp(a) || b.id - a.id;
+  return {
+    recent,
+    ancien: (a, b) => stamp(a) - stamp(b) || a.id - b.id,
+    client: (a, b) => cmpText(fullName(a), fullName(b)) || recent(a, b),
+    client_za: (a, b) => cmpText(fullName(b), fullName(a)) || recent(a, b),
+    montant: (a, b) => (Number(b.montant) || 0) - (Number(a.montant) || 0) || recent(a, b),
+    montant_asc: (a, b) => (Number(a.montant) || 0) - (Number(b.montant) || 0) || recent(a, b),
+    echeance: (a, b) => cmpValue(a.date_echeance, b.date_echeance, 1) || recent(a, b),
+    statut: (a, b) => STATUS_ORDER.indexOf(a.statut) - STATUS_ORDER.indexOf(b.statut) || recent(a, b)
+  }[sort] || recent;
+}
+
+const EMPTY_FORM = { client_id: '', montant: '', date_echeance: '', statut: 'en_attente' };
 
 export default function Facturation() {
-  const [invoices, setInvoices] = useState([]);
+  const [invoices, setInvoices] = useState(null);
+  const [error, setError] = useState('');
   const [clients, setClients] = useState([]);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ client_id: '', montant: '', date_echeance: '', statut: 'en_attente' });
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [formError, setFormError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [sort, setSort] = useStoredChoice('crm_invoices_sort', 'recent', SORTS.map(s => s.value));
   const { refreshKey, openDeal, bumpRefresh, showToast } = useUI();
 
-  async function load() {
-    setInvoices(await api.invoices.list() || []);
-  }
-
-  useEffect(() => { load(); }, [refreshKey]);
-  useEffect(() => { if (showForm) api.clients.list().then(setClients); }, [showForm]);
+  const load = useCallback(() => {
+    api.invoices.list().then(r => { setInvoices(r || []); setError(''); }).catch(e => setError(e.message));
+  }, []);
+  useEffect(() => { load(); }, [load, refreshKey]);
+  useEffect(() => {
+    if (showForm) api.clients.list().then(r => setClients(r || [])).catch(() => {});
+  }, [showForm]);
 
   async function changeStatus(inv, statut) {
-    await api.invoices.update(inv.id, { ...inv, statut });
-    load();
-    bumpRefresh();
+    try {
+      await api.invoices.update(inv.id, { statut });
+      load();
+      bumpRefresh();
+    } catch (e) {
+      showToast(e.message || 'Impossible de changer le statut');
+    }
   }
 
   async function handleCreate(e) {
     e.preventDefault();
-    if (!form.client_id) return;
-    await api.invoices.create(form);
-    setShowForm(false);
-    setForm({ client_id: '', montant: '', date_echeance: '', statut: 'en_attente' });
-    load();
-    bumpRefresh();
-    showToast('Facture créée avec succès');
+    setFormError('');
+    if (!form.client_id) return setFormError('Choisissez un client');
+    setSaving(true);
+    try {
+      await api.invoices.create(form);
+      setShowForm(false);
+      setForm(EMPTY_FORM);
+      load();
+      bumpRefresh();
+      showToast('Facture créée avec succès');
+    } catch (ex) {
+      setFormError(ex.message || 'Erreur');
+    } finally {
+      setSaving(false);
+    }
   }
 
-  const sum = (statut) => invoices.filter(i => i.statut === statut).reduce((a, i) => a + (i.montant || 0), 0);
+  const list = invoices || [];
+  const sorted = useMemo(() => [...list].sort(comparator(sort)), [list, sort]);
+
+  const now = new Date();
+  const sameMonth = i => {
+    const d = parseDb(i.updated_at || i.created_at);
+    return d && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  };
+  const sum = (statut, filter = () => true) => list.filter(i => i.statut === statut && filter(i)).reduce((a, i) => a + (Number(i.montant) || 0), 0);
   const stats = [
-    { label: 'Encaissé ce mois', value: money(sum('payee')), hue: '#5f9d5f' },
+    { label: 'Encaissé ce mois', value: money(sum('payee', sameMonth)), hue: '#5f9d5f' },
     { label: 'En attente', value: money(sum('en_attente')), hue: 'var(--accent)' },
     { label: 'En retard', value: money(sum('en_retard')), hue: '#c4584f' }
   ];
@@ -60,41 +113,49 @@ export default function Facturation() {
       </div>
 
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, boxShadow: 'var(--shadow)', overflow: 'hidden' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', padding: '12px 20px', borderBottom: '1px solid var(--border)' }}>
           <div style={{ fontSize: 14, fontWeight: 800 }}>Factures</div>
-          <button onClick={() => setShowForm(true)} className="btn-ghost" style={{
-            display: 'flex', alignItems: 'center', gap: 7, height: 34, padding: '0 13px', border: '1px solid var(--border)',
-            borderRadius: 9, background: 'var(--surface)', color: 'var(--fg)', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 700, cursor: 'pointer'
-          }}><Plus size={13} strokeWidth={2.4} />Nouvelle facture</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <SortSelect value={sort} onChange={setSort} options={SORTS} />
+            <button onClick={() => setShowForm(true)} className="btn-ghost" style={{ ...btnGhost, height: 38, fontSize: 12.5 }}>
+              <Plus size={13} strokeWidth={2.4} />Nouvelle facture
+            </button>
+          </div>
         </div>
 
-        {invoices.length === 0 ? (
+        {error && <div role="alert" style={{ padding: 20, color: '#c4584f', fontSize: 13.5, fontWeight: 600 }}>{error}</div>}
+        {!invoices && !error && <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--fg-muted)', fontSize: 13.5 }}>Chargement…</div>}
+
+        {invoices && invoices.length === 0 && (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--fg-faint)' }}>
             <Receipt size={32} style={{ margin: '0 auto 12px', opacity: .4 }} />
             <p style={{ margin: 0 }}>Aucune facture</p>
           </div>
-        ) : (
+        )}
+
+        {invoices && invoices.length > 0 && (
           <div style={{ overflowX: 'auto' }}>
             <div style={{ minWidth: 640 }}>
               <div className="invoices-row" style={{ padding: '11px 20px', fontSize: 10.5, fontWeight: 700, letterSpacing: '.05em', color: 'var(--fg-faint)', borderBottom: '1px solid var(--border)', textTransform: 'uppercase' }}>
                 <div>Facture</div><div>Client</div><div>Montant</div><div>Statut</div><div>Échéance</div>
               </div>
-              {invoices.map(inv => {
+              {sorted.map(inv => {
                 const stc = INVOICE_STATUSES[inv.statut] || INVOICE_STATUSES.en_attente;
+                const late = inv.statut !== 'payee' && inv.date_echeance && daysFromToday(inv.date_echeance) < 0;
                 return (
                   <div key={inv.id} className="row-hover invoices-row" style={{ padding: '13px 20px', borderBottom: '1px solid var(--border)', fontSize: 13.5, alignItems: 'center' }}>
                     <div style={{ fontFamily: 'ui-monospace, monospace', fontSize: 12, fontWeight: 700, color: 'var(--fg-muted)' }}>{inv.reference}</div>
-                    <button onClick={() => openDeal(inv.client_id)} style={{ border: 'none', background: 'transparent', padding: 0, fontWeight: 700, fontFamily: 'inherit', fontSize: 13.5, color: 'var(--fg)', cursor: 'pointer', textAlign: 'left' }}>{inv.prenom} {inv.nom}</button>
+                    <button onClick={() => openDeal(inv.client_id)} style={{ border: 'none', background: 'transparent', padding: 0, fontWeight: 700, fontFamily: 'inherit', fontSize: 13.5, color: 'var(--fg)', cursor: 'pointer', textAlign: 'left', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fullName(inv) || '—'}</button>
                     <div style={{ fontWeight: 800 }}>{money(inv.montant)}</div>
                     <div>
-                      <select value={inv.statut} onChange={e => changeStatus(inv, e.target.value)} style={{
+                      <select value={inv.statut} onChange={e => changeStatus(inv, e.target.value)} aria-label="Statut de la facture" style={{
                         fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: soft(stc.hue), color: stc.hue,
                         border: 'none', fontFamily: 'inherit', cursor: 'pointer'
                       }}>
                         {Object.entries(INVOICE_STATUSES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                       </select>
                     </div>
-                    <div style={{ color: 'var(--fg-muted)' }}>{inv.date_echeance ? new Date(inv.date_echeance).toLocaleDateString('fr-CA') : '—'}</div>
+                    <div style={{ color: late ? '#c4584f' : 'var(--fg-muted)', fontWeight: late ? 700 : 400 }}>{inv.date_echeance ? fmtDay(inv.date_echeance) : '—'}</div>
                   </div>
                 );
               })}
@@ -104,34 +165,31 @@ export default function Facturation() {
       </div>
 
       {showForm && (
-        <div className="fadein" onClick={() => setShowForm(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(10,8,6,.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          <div className="popin" onClick={e => e.stopPropagation()} style={{ width: 420, maxWidth: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, boxShadow: '0 30px 80px rgba(0,0,0,.35)', padding: 24 }}>
-            <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 800 }}>Nouvelle facture</h2>
-            <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
-              <div>
-                <div style={labelStyle}>Client</div>
-                <select required value={form.client_id} onChange={e => setForm(f => ({ ...f, client_id: e.target.value }))} style={inputStyle}>
-                  <option value="">Sélectionner un client…</option>
-                  {clients.map(c => <option key={c.id} value={c.id}>{c.prenom} {c.nom}</option>)}
-                </select>
-              </div>
-              <div style={{ display: 'flex', gap: 12 }}>
-                <div style={{ flex: 1 }}>
-                  <div style={labelStyle}>Montant</div>
-                  <input type="number" value={form.montant} onChange={e => setForm(f => ({ ...f, montant: e.target.value }))} placeholder="0 $" style={inputStyle} />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={labelStyle}>Échéance</div>
-                  <input type="date" value={form.date_echeance} onChange={e => setForm(f => ({ ...f, date_echeance: e.target.value }))} style={inputStyle} />
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-                <button type="button" onClick={() => setShowForm(false)} style={{ flex: 1, height: 42, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--surface)', color: 'var(--fg)', fontFamily: 'inherit', fontSize: 13.5, fontWeight: 700, cursor: 'pointer' }}>Annuler</button>
-                <button type="submit" style={{ flex: 1, height: 42, border: 'none', borderRadius: 10, background: 'var(--accent)', color: 'var(--accent-fg)', fontFamily: 'inherit', fontSize: 13.5, fontWeight: 700, cursor: 'pointer' }}>Créer</button>
-              </div>
-            </form>
+        <Modal
+          title="Nouvelle facture"
+          onClose={() => setShowForm(false)}
+          onSubmit={handleCreate}
+          width={460}
+          footer={
+            <>
+              <button type="button" onClick={() => setShowForm(false)} className="btn-ghost" style={btnGhost}>Annuler</button>
+              <button type="submit" disabled={saving} className="btn-accent" style={{ ...btnAccent, opacity: saving ? 0.7 : 1 }}>{saving ? 'Création…' : 'Créer'}</button>
+            </>
+          }
+        >
+          <Field label="Client">
+            <ClientPicker clients={clients} value={form.client_id} onChange={id => setForm(f => ({ ...f, client_id: id }))} autoFocus />
+          </Field>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
+            <Field label="Montant">
+              <input type="number" min="0" step="0.01" inputMode="decimal" value={form.montant} onChange={e => setForm(f => ({ ...f, montant: e.target.value }))} placeholder="0 $" style={inputStyle} />
+            </Field>
+            <Field label="Échéance">
+              <input type="date" value={form.date_echeance} onChange={e => setForm(f => ({ ...f, date_echeance: e.target.value }))} style={inputStyle} />
+            </Field>
           </div>
-        </div>
+          {formError && <div role="alert" style={{ fontSize: 13, fontWeight: 600, color: '#c4584f', background: soft('#c4584f'), borderRadius: 9, padding: '9px 12px' }}>{formError}</div>}
+        </Modal>
       )}
     </div>
   );

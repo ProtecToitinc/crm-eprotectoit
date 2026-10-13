@@ -37,7 +37,13 @@ export const EVENT_TYPES = {
   relance: { label: 'Relance', hue: '#9aa0a6' }
 };
 
-export const AVATAR_PALETTE = ['#c17a3f', '#6b8cae', '#5f9d5f', '#a86b8c', '#8a8580', '#b27a3e'];
+export const CALL_DIRECTIONS = {
+  entrant: { label: 'Appel reçu', pick: 'Le client a appelé', hue: '#5f9d5f' },
+  sortant: { label: 'Appel fait', pick: 'J’ai appelé', hue: '#6b8cae' },
+  manque: { label: 'Appel manqué', pick: 'Appel manqué', hue: '#c4584f' }
+};
+
+export const AVATAR_PALETTE =['#c17a3f', '#6b8cae', '#5f9d5f', '#a86b8c', '#8a8580', '#b27a3e'];
 
 export function money(n) {
   const v = Number(n) || 0;
@@ -67,7 +73,9 @@ export function titleFor(screen) {
     calendar: ['Calendrier', 'Rendez-vous, inspections et chantiers'],
     quotes: ['Soumissions', 'Devis et estimations en cours'],
     map: ['Carte des projets', 'Répartition géographique de vos chantiers'],
-    billing: ['Facturation', 'Factures, paiements et encaissements']
+    billing: ['Facturation', 'Factures, paiements et encaissements'],
+    notes: ['Notes', 'Notes générales et notes par client'],
+    calls: ['Appels', 'Journal des appels et rappels']
   };
   return titles[screen] || ['', ''];
 }

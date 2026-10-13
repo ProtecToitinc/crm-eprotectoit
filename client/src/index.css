@@ -70,6 +70,8 @@ body {
 
 .linkbtn:hover { color: var(--accent); }
 
+.hscroll { overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.hscroll::-webkit-scrollbar { display: none; }
 main::-webkit-scrollbar, .kanban::-webkit-scrollbar, .drawerbody::-webkit-scrollbar { height: 10px; width: 9px; }
 main::-webkit-scrollbar-thumb, .kanban::-webkit-scrollbar-thumb, .drawerbody::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
 
@@ -90,7 +92,17 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
   .dash-grid, .map-grid { grid-template-columns: 1fr; }
 }
 
-.clients-row { display: grid; grid-template-columns: 2fr 1.2fr 1.6fr 1fr 1.1fr 1fr; gap: 12px; }
+.clients-wrap { container-type: inline-size; }
+.clients-row { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1.1fr) minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 1.1fr) minmax(0, 1.1fr); gap: 12px; }
+@container (max-width: 780px) {
+  .clients-head { display: none; }
+  .clients-row { grid-template-columns: minmax(0, 1fr) auto; gap: 5px 12px; }
+  .clients-row .c-ville, .clients-row .c-service, .clients-row .c-contact, .clients-row [data-empty="true"] { display: none; }
+  .clients-row .c-name { grid-column: 1; grid-row: 1; }
+  .clients-row .c-etape { grid-column: 2; grid-row: 1; justify-self: end; }
+  .clients-row .c-appels { grid-column: 1; grid-row: 2; padding-left: 43px; }
+  .clients-row .c-valeur { grid-column: 2; grid-row: 2; justify-self: end; }
+}
 .quotes-row { display: grid; grid-template-columns: 1.3fr 1.5fr 1.7fr 1fr 1.1fr 1fr; gap: 12px; }
 .invoices-row { display: grid; grid-template-columns: 1.3fr 1.8fr 1fr 1.1fr 1.1fr; gap: 12px; }
 

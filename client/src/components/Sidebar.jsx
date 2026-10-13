@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutGrid, BarChart3, Calendar, MapPin, Users, FileText, Receipt } from 'lucide-react';
+import { LayoutGrid, BarChart3, Calendar, MapPin, Users, FileText, Receipt, Phone, StickyNote } from 'lucide-react';
 
 const PRINCIPAL = [
   { to: '/', icon: LayoutGrid, label: 'Tableau de bord', end: true },
@@ -11,6 +11,8 @@ const PRINCIPAL = [
 
 const GESTION = [
   { to: '/clients', icon: Users, label: 'Clients' },
+  { to: '/appels', icon: Phone, label: 'Appels' },
+  { to: '/notes', icon: StickyNote, label: 'Notes' },
   { to: '/soumissions', icon: FileText, label: 'Soumissions' },
   { to: '/facturation', icon: Receipt, label: 'Facturation' }
 ];
@@ -80,7 +82,7 @@ export default function Sidebar({ mobileOpen, onCloseMobile }) {
       </aside>
 
       {mobileOpen && (
-        <div className="md:hidden fixed inset-0 z-30" style={{ background: 'var(--sidebar-bg)', paddingTop: 56, overflowY: 'auto' }}>
+        <div className="md:hidden fixed inset-0 z-30" style={{ background: 'var(--sidebar-bg)', paddingTop: 66, overflowY: 'auto' }}>
           <div style={{ padding: 16 }}>
             <NavGroup title="PRINCIPAL" items={PRINCIPAL} onItemClick={onCloseMobile} />
             <div style={{ height: 10 }} />

@@ -12,6 +12,8 @@ import Calendrier from './pages/Calendrier';
 import Carte from './pages/Carte';
 import Soumissions from './pages/Soumissions';
 import Facturation from './pages/Facturation';
+import Notes from './pages/Notes';
+import Appels from './pages/Appels';
 import { api } from './api';
 
 export default function App() {
@@ -47,6 +49,8 @@ export default function App() {
             <Route path="/carte" element={<Carte />} />
             <Route path="/soumissions" element={<Soumissions />} />
             <Route path="/facturation" element={<Facturation />} />
+            <Route path="/notes" element={<Notes />} />
+            <Route path="/appels" element={<Appels />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </Layout>

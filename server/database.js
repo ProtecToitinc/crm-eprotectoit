@@ -164,6 +164,38 @@ async function init() {
     key TEXT PRIMARY KEY,
     value TEXT
   )`);
+
+  // Notes : client_id NULL = note générale
+  await run(`CREATE TABLE IF NOT EXISTS notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER REFERENCES clients(id) ON DELETE CASCADE,
+    titre TEXT,
+    contenu TEXT NOT NULL,
+    epingle INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  )`);
+  await run(`CREATE INDEX IF NOT EXISTS idx_notes_client ON notes(client_id)`);
+
+  // Journal d'appels : direction = entrant (le client a appelé) | sortant (on l'a appelé) | manque
+  await run(`CREATE TABLE IF NOT EXISTS appels (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+    direction TEXT NOT NULL DEFAULT 'entrant',
+    date_appel TEXT NOT NULL,
+    heure TEXT,
+    duree_min INTEGER,
+    sujet TEXT,
+    resume TEXT,
+    a_rappeler INTEGER DEFAULT 0,
+    rappel_date TEXT,
+    rappel_heure TEXT,
+    rappel_fait INTEGER DEFAULT 0,
+    evenement_id INTEGER REFERENCES evenements(id) ON DELETE SET NULL,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  )`);
+  await run(`CREATE INDEX IF NOT EXISTS idx_appels_client ON appels(client_id)`);
 }
 
-module.exports = { run, get, all, init };
+module.exports = { run, get, all, init, dbPath };

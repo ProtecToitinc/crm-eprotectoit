@@ -4,20 +4,40 @@ function getToken() {
   return localStorage.getItem('crm_token') || '';
 }
 
+// Une réponse en erreur lève une exception (message du serveur) au lieu d'être prise pour des données.
 async function req(method, path, body, isFormData = false) {
   const headers = { Authorization: `Bearer ${getToken()}` };
   if (!isFormData) headers['Content-Type'] = 'application/json';
-  const res = await fetch(BASE + path, {
-    method,
-    headers,
-    body: body ? (isFormData ? body : JSON.stringify(body)) : undefined
-  });
-  if (res.status === 401) {
+  let res;
+  try {
+    res = await fetch(BASE + path, {
+      method,
+      headers,
+      body: body ? (isFormData ? body : JSON.stringify(body)) : undefined
+    });
+  } catch {
+    throw new Error('Connexion au serveur impossible');
+  }
+  const isAuthCall = path.startsWith('/auth/');
+  if (res.status === 401 && !isAuthCall) {
     localStorage.removeItem('crm_token');
     window.location.href = '/';
-    return;
+    return new Promise(() => {}); // la page se recharge
   }
-  return res.json();
+  let data = null;
+  try { data = await res.json(); } catch { /* corps vide */ }
+  if (!res.ok && !isAuthCall) throw new Error(data?.message || `Erreur ${res.status}`);
+  return data;
+}
+
+function qs(params = {}) {
+  const p = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => {
+    if (v === undefined || v === null || v === '' || v === false) return;
+    p.set(k, v === true ? '1' : v);
+  });
+  const s = p.toString();
+  return s ? `?${s}` : '';
 }
 
 export const api = {
@@ -27,9 +47,10 @@ export const api = {
   meta: () => req('GET', '/meta'),
   geocode: () => req('POST', '/geocode'),
   stats: () => req('GET', '/stats'),
+  search: (q) => req('GET', `/search${qs({ q })}`),
 
   clients: {
-    list: (q) => req('GET', `/clients${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+    list: (q) => req('GET', `/clients${qs({ q })}`),
     get: (id) => req('GET', `/clients/${id}`),
     create: (data) => req('POST', '/clients', data),
     update: (id, data) => req('PUT', `/clients/${id}`, data),
@@ -70,10 +91,26 @@ export const api = {
   },
 
   evenements: {
-    list: (debut, fin) => req('GET', `/evenements${debut ? `?debut=${debut}&fin=${fin}` : ''}`),
+    list: (debut, fin) => req('GET', `/evenements${qs({ debut, fin })}`),
     create: (data) => req('POST', '/evenements', data),
     update: (id, data) => req('PUT', `/evenements/${id}`, data),
     delete: (id) => req('DELETE', `/evenements/${id}`)
+  },
+
+  // client_id = null → note générale ; list({ general: true }) = notes générales seulement
+  notes: {
+    list: (params) => req('GET', `/notes${qs(params)}`),
+    create: (data) => req('POST', '/notes', data),
+    update: (id, data) => req('PUT', `/notes/${id}`, data),
+    delete: (id) => req('DELETE', `/notes/${id}`)
+  },
+
+  // direction : entrant (le client a appelé) | sortant (on l'a appelé) | manque
+  appels: {
+    list: (params) => req('GET', `/appels${qs(params)}`),
+    create: (data) => req('POST', '/appels', data),
+    update: (id, data) => req('PUT', `/appels/${id}`, data),
+    delete: (id) => req('DELETE', `/appels/${id}`)
   },
 
   google: {

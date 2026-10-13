@@ -3,6 +3,8 @@ import Sidebar from './Sidebar';
 import Header from './Header';
 import Drawer from './Drawer';
 import QuoteModal from './QuoteModal';
+import CallModal from './CallModal';
+import NoteModal from './NoteModal';
 import Toast from './Toast';
 
 export default function Layout({ children }) {
@@ -21,6 +23,8 @@ export default function Layout({ children }) {
 
       <Drawer />
       <QuoteModal />
+      <CallModal />
+      <NoteModal />
       <Toast />
     </div>
   );
