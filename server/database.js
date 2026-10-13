@@ -2,7 +2,7 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 
 const dbPath = process.env.DB_PATH || path.join(__dirname, 'crm.db');
-const db = new sqlite3.Database(dbPath);
+let db = new sqlite3.Database(dbPath);
 
 function run(sql, params = []) {
   return new Promise((resolve, reject) => {
@@ -197,6 +197,11 @@ async function init() {
   )`);
   await run(`CREATE INDEX IF NOT EXISTS idx_appels_client ON appels(client_id)`);
   await require('./integration-migrations').migrate();
+  await require('./migrations').migrate();
 }
 
-module.exports = { run, get, all, init, dbPath };
+// Utilisés uniquement par la restauration d'une sauvegarde (voir backup.js)
+function close() { return new Promise((resolve, reject) => db.close(err => (err ? reject(err) : resolve()))); }
+function reopen() { db = new sqlite3.Database(dbPath); }
+
+module.exports = { run, get, all, init, dbPath, close, reopen };

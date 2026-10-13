@@ -7,10 +7,21 @@ const fs = require('fs');
 const db = require('./database');
 const { STAGES, SERVICES, QUOTE_STATUSES, INVOICE_STATUSES } = require('./constants');
 const google = require('./google');
+const security = require('./security');
+const backup = require('./backup');
+const { migrateSecrets, redactUrl } = require('./lib');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const PASSWORD = process.env.CRM_PASSWORD || 'eprotectoit2024';
+// Aucun mot de passe par défaut : il doit être défini dans l'environnement (Railway → Variables).
+const PASSWORD = process.env.CRM_PASSWORD;
+if (!PASSWORD || PASSWORD.length < 8) {
+  console.error('CRM_PASSWORD est absent ou trop court (8 caractères minimum). Définis-le dans les variables d\'environnement avant de démarrer.');
+  process.exit(1);
+}
+const { auth } = security;
+app.set('trust proxy', 1); // Railway : l'adresse IP réelle vient de X-Forwarded-For
+app.disable('x-powered-by');
 
 // Express 4 n'attrape pas les erreurs des handlers async : on les envoie au middleware d'erreur
 // (sinon une requête qui échoue reste sans réponse et peut faire tomber le processus).
@@ -24,9 +35,14 @@ for (const method of ['get', 'post', 'put', 'delete']) {
   };
 }
 
-app.use(cors());
-app.use(express.json());
+// Même origine seulement, sauf si CORS_ORIGIN liste explicitement d'autres origines.
+app.use(cors({ origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',').map(s => s.trim()) : false }));
+app.use(security.securityHeaders);
+app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: false }));
+app.use((req, res, next) => (backup.isRestoring() && req.path.startsWith('/api/')
+  ? res.status(503).json({ message: 'Restauration en cours, réessaie dans quelques secondes.' }) : next()));
+app.use(security.auditMiddleware);
 
 // Sur Railway, DB_PATH pointe vers le volume persistant : on y range aussi les fichiers
 // (le disque du conteneur est effacé à chaque déploiement).
@@ -52,8 +68,6 @@ const storage = multer.diskStorage({
   }
 });
 const upload = multer({ storage, limits: { fileSize: 20 * 1024 * 1024 } });
-
-const TOKEN = Buffer.from(PASSWORD).toString('base64');
 
 // ---- Utilitaires ----
 const TZ = 'America/Toronto';
@@ -93,20 +107,8 @@ function filterClients(rows, q) {
   return rows.filter(matches).sort((a, b) => rank(a) - rank(b));
 }
 
-app.post('/api/auth/login', (req, res) => {
-  if (req.body.password === PASSWORD) res.json({ ok: true, token: TOKEN });
-  else res.status(401).json({ ok: false, message: 'Mot de passe incorrect' });
-});
-
-app.post('/api/auth/verify', (req, res) => {
-  res.json({ ok: req.body.token === TOKEN });
-});
-
-function auth(req, res, next) {
-  if (req.headers.authorization?.replace('Bearer ', '') !== TOKEN)
-    return res.status(401).json({ message: 'Non autorisé' });
-  next();
-}
+// Connexion, sessions qui expirent, limitation des tentatives (voir security.js)
+security.registerAuth(app, PASSWORD);
 
 app.get('/api/meta', auth, (req, res) => {
   res.json({ stages: STAGES, services: SERVICES, quoteStatuses: QUOTE_STATUSES, invoiceStatuses: INVOICE_STATUSES });
@@ -200,6 +202,16 @@ app.delete('/api/clients/:id', auth, async (req, res) => {
   for (const ev of evs) await google.deleteEventOut(ev).catch(() => {});
   await db.run('DELETE FROM clients WHERE id=?', [req.params.id]);
   res.json({ ok: true });
+});
+
+// Qui s'occupe de ce client (choix manuel ; sinon la première personne qui le modifie)
+app.put('/api/clients/:id/responsable', auth, async (req, res) => {
+  const who = req.body?.responsable || null;
+  if (who !== null && !security.USERS.includes(who)) return bad(res, 'Utilisateur inconnu');
+  const r = await db.run('UPDATE clients SET responsable=? WHERE id=?', [who, req.params.id]);
+  if (!r.changes) return res.status(404).json({ message: 'Client introuvable' });
+  await security.audit({ actor: req.session.user, action: 'responsable', entity: 'clients', entity_id: Number(req.params.id), details: who ? `Pris en charge par ${who}` : 'Responsable retiré' });
+  res.json({ ok: true, responsable: who });
 });
 
 // ---- RECHERCHE GLOBALE (barre du haut) ----
@@ -615,15 +627,19 @@ app.get('/api/google/status', auth, async (req, res) => {
 });
 
 app.get('/api/google/auth-url', auth, async (req, res) => {
-  res.json({ url: google.getAuthUrl() });
+  res.json({ url: google.getAuthUrl(await security.newOAuthState()) });
 });
 
+// Le paramètre `state` (usage unique, 10 min) empêche qu'un tiers fasse brancher son propre compte Google.
 app.get('/api/google/callback', async (req, res) => {
+  const escapeHtml = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   try {
+    if (req.query.error) throw new Error('Autorisation refusée dans Google');
+    if (!(await security.consumeOAuthState(req.query.state))) throw new Error('Demande de connexion expirée ou invalide : relance la connexion depuis le CRM');
     await google.handleCallback(req.query.code);
-    res.send('<html><body style="font-family:sans-serif;text-align:center;padding:60px;">Connexion Google Calendar réussie. <script>setTimeout(()=>window.close(),1500)</script></body></html>');
+    res.send('<html><body style="font-family:sans-serif;text-align:center;padding:60px;">Connexion Google réussie (Agenda, Drive et Gmail selon les autorisations accordées). Tu peux fermer cette fenêtre. <script>setTimeout(()=>window.close(),1500)</script></body></html>');
   } catch (e) {
-    res.status(500).send('Erreur de connexion Google : ' + e.message);
+    res.status(400).send('Erreur de connexion Google : ' + escapeHtml(e.message));
   }
 });
 
@@ -728,6 +744,8 @@ app.get('/api/stats', auth, async (req, res) => {
 // Intégrations Drive / Meta : webhooks protégés par leur clé, routes CRM par auth.
 const integrations = require('./integrations-setup');
 integrations.register(app, { auth });
+security.registerAudit(app);
+backup.register(app, { auth, uploadsDirs: [uploadsDir, legacyUploadsDir] });
 
 // Route API inconnue → JSON (et non la page React)
 app.use('/api', (req, res) => res.status(404).json({ message: 'Route introuvable' }));
@@ -741,17 +759,24 @@ if (fs.existsSync(clientDist)) {
 
 // Erreurs : réponse JSON propre au lieu d'une requête qui reste sans réponse
 app.use((err, req, res, next) => {
-  console.error(req.method, req.originalUrl, err);
+  // On journalise le message seulement : l'objet d'erreur complet (googleapis, fetch) peut contenir des jetons.
+  console.error(req.method, redactUrl(req.originalUrl), err?.code || '', err?.message || err);
   if (res.headersSent) return next(err);
   res.status(err.status || 500).json({ message: err.message || 'Erreur serveur' });
 });
 
-process.on('unhandledRejection', err => console.error('unhandledRejection', err));
+process.on('unhandledRejection', err => console.error('unhandledRejection', err?.code || '', err?.message || err));
 
-db.init().then(() => {
+db.init().then(async () => {
+  await migrateSecrets();          // chiffre les jetons encore en clair
+  await security.purgeExpired();
   app.listen(PORT, () => {
     console.log(`CRM eProtectoIT démarré sur http://localhost:${PORT}`);
-    integrations.startJobs();
+    if (process.env.DISABLE_JOBS !== '1') {
+      integrations.startJobs();
+      backup.startJob();
+      setInterval(() => security.purgeExpired().catch(() => {}), 6 * 3600 * 1000).unref();
+    }
   });
 }).catch(err => {
   console.error('Erreur initialisation DB:', err);

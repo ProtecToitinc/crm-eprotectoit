@@ -1,4 +1,7 @@
 'use strict';
+const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const db = require('./database');
 const TZ = 'America/Toronto';
 function localParts(date=new Date()) {
@@ -35,4 +38,37 @@ async function getJsonSetting(key,fallback=null) {
   try{return JSON.parse(raw);}catch{return fallback;}
 }
 const setJsonSetting=(key,value)=>setSetting(key,JSON.stringify(value));
-module.exports={localParts,clean,norm,digitsOf,phoneKey,emailKey,nameTokens,addHistory,nextReference,getSetting,setSetting,getJsonSetting,setJsonSetting};
+
+// ---- Secrets chiffrés au repos (AES-256-GCM) : jetons Google/Meta et clé de webhook ----
+const SECRET_SETTINGS=['google_tokens','meta_page_token','leads_webhook_key'];
+let _secretKey=null;
+function secretKey() {
+  if(_secretKey) return _secretKey;
+  if(process.env.SECRETS_KEY) return (_secretKey=crypto.createHash('sha256').update(process.env.SECRETS_KEY).digest());
+  const file=path.join(path.dirname(db.dbPath),'.crm-secret');
+  try { const k=Buffer.from(fs.readFileSync(file,'utf8').trim(),'hex'); if(k.length!==32) throw new Error('clé invalide'); _secretKey=k; }
+  catch { _secretKey=crypto.randomBytes(32); fs.writeFileSync(file,_secretKey.toString('hex'),{mode:0o600}); }
+  return _secretKey;
+}
+function encrypt(plain) {
+  const iv=crypto.randomBytes(12), c=crypto.createCipheriv('aes-256-gcm',secretKey(),iv);
+  const data=Buffer.concat([c.update(String(plain),'utf8'),c.final()]);
+  return 'enc:v1:'+Buffer.concat([iv,c.getAuthTag(),data]).toString('base64');
+}
+function decrypt(value) {
+  if(typeof value!=='string' || !value.startsWith('enc:v1:')) return value;
+  try {
+    const raw=Buffer.from(value.slice(7),'base64');
+    const d=crypto.createDecipheriv('aes-256-gcm',secretKey(),raw.subarray(0,12));
+    d.setAuthTag(raw.subarray(12,28));
+    return Buffer.concat([d.update(raw.subarray(28)),d.final()]).toString('utf8');
+  } catch { console.error('[secrets] déchiffrement impossible (clé changée?) : reconnecter le service concerné'); return null; }
+}
+async function getSecret(key) { const raw=await getSetting(key); return raw ? decrypt(raw) : raw; }
+async function setSecret(key,value) { await setSetting(key, value ? encrypt(value) : ''); }
+/** Chiffre les valeurs encore en clair (migration au démarrage). */
+async function migrateSecrets() {
+  for(const key of SECRET_SETTINGS) { const raw=await getSetting(key); if(raw && !raw.startsWith('enc:v1:')) await setSecret(key,raw); }
+}
+const redactUrl = url => String(url||'').replace(/([?&](?:key|token|access_token|code|state)=)[^&\s]+/gi,'$1[masqué]');
+module.exports={getSecret,setSecret,migrateSecrets,encrypt,decrypt,redactUrl,localParts,clean,norm,digitsOf,phoneKey,emailKey,nameTokens,addHistory,nextReference,getSetting,setSetting,getJsonSetting,setJsonSetting};

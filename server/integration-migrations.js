@@ -26,6 +26,9 @@ async function migrate() {
     modified_time TEXT,web_link TEXT,snapshot TEXT,
     status TEXT NOT NULL DEFAULT 'ok',message TEXT,synced_at TEXT
   )`);
+  // decision : choix manuel de l'utilisateur pour un élément à valider ('lier' | 'creer' | 'ignorer')
+  const driveCols = await db.all('PRAGMA table_info(drive_items)');
+  if (!driveCols.some(c => c.name === 'decision')) await db.run('ALTER TABLE drive_items ADD COLUMN decision TEXT');
   await db.run('CREATE INDEX IF NOT EXISTS idx_drive_items_client ON drive_items(client_id)');
   await db.run('CREATE INDEX IF NOT EXISTS idx_drive_items_parent ON drive_items(parent_id)');
 }

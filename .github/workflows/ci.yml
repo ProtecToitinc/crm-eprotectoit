@@ -21,13 +21,10 @@ jobs:
       - name: Install server dependencies
         working-directory: server
         run: npm install --no-audit --no-fund
-      - name: Validate server source and six isolated tests
+      - name: Validate server source and run tests (isolated temporary databases)
         run: |
-          node --check server/server.js
-          node --check server/google.js
-          node --check server/drive.js
-          node --check server/leads.js
-          node --test tests/patch.test.js
+          for f in server/*.js; do node --check "$f"; done
+          node --test tests/
       - name: Smoke-test API on isolated temporary database
         env:
           PORT: '3055'
