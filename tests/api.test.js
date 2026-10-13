@@ -136,7 +136,7 @@ test('sauvegarde : création, contenu vérifié, restauration sans perdre la ses
 });
 
 test('Drive : sans autorisation Google, l’aperçu répond proprement et l’activation auto est refusée', async () => {
-  const dry = (await srv.call('POST', '/api/drive/sync', { token, body: { dry: true } })).data;
+  const dry = (await srv.call('POST', '/api/drive/sync', { token, body: { dry: true } })).data; // refusé tout de suite : Google non autorisé
   assert.equal(dry.ok, false); assert.match(dry.message, /Drive/);
   const auto = await srv.call('POST', '/api/drive/auto', { token, body: { enabled: true } });
   assert.equal(auto.status, 409);
