@@ -183,6 +183,7 @@ export const api = {
     create: data => req('POST', '/chantiers', data),
     update: (id, data) => req('PUT', `/chantiers/${id}`, data),
     delete: id => req('DELETE', `/chantiers/${id}`),
+    deleteAll: () => req('DELETE', '/chantiers', { confirm: 'EFFACER' }),
     addPhoto: (id, formData) => req('POST', `/chantiers/${id}/photos`, formData, true),
     deletePhoto: (id, photoId) => req('DELETE', `/chantiers/${id}/photos/${photoId}`)
   },

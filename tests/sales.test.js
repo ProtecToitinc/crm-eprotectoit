@@ -111,3 +111,24 @@ test('Meta Ads : leads par campagne reliés aux clients, soumissions et contrats
   assert.equal(d.donnees_publicitaires, false);
   assert.equal((await api('POST', '/api/ads/sync')).data.ok, false);
 });
+
+test('chantiers : ajout manuel, suppression définitive qui ne se recrée pas, « tout effacer » protégé', async () => {
+  const c = await api('POST', '/api/clients', { nom: 'Manuel', prenom: 'Chantier' });
+  const o = await api('POST', '/api/opportunites', { client_id: c.data.id, titre: 'Projet X', etape: 'contrat', valeur: 2000 });
+  assert.equal((await api('POST', '/api/chantiers', { titre: 'Sans client' })).status, 400);
+  const made = await api('POST', '/api/chantiers', { client_id: c.data.id, titre: 'Mon chantier', statut: 'planifie', date_debut: '2026-11-05', notes_inspection: 'Toit plat', materiaux: 'Noxnano', opportunite_id: o.data.id });
+  assert.equal(made.status, 201);
+  const detail = (await api('GET', `/api/chantiers/${made.data.id}`)).data;
+  assert.equal(detail.statut, 'planifie'); assert.equal(detail.date_debut, '2026-11-05'); assert.equal(detail.notes_inspection, 'Toit plat');
+  assert.equal((await api('POST', '/api/chantiers', { client_id: c.data.id, opportunite_id: o.data.id })).status, 409, 'un seul chantier par projet');
+  await api('DELETE', `/api/chantiers/${made.data.id}`);
+  await api('POST', '/api/relances/run');
+  assert.equal((await api('GET', '/api/chantiers')).data.filter(x => x.opportunite_id === o.data.id).length, 0, 'un chantier supprimé ne revient pas');
+  assert.equal((await api('DELETE', '/api/chantiers', {})).status, 400, 'confirmation obligatoire');
+  const wiped = await api('DELETE', '/api/chantiers', { confirm: 'EFFACER' });
+  assert.equal(wiped.status, 200);
+  assert.equal((await api('GET', '/api/chantiers')).data.length, 0);
+  await api('POST', '/api/relances/run');
+  assert.equal((await api('GET', '/api/chantiers')).data.length, 0, 'rien n’est recréé après « tout effacer »');
+  assert.equal((await api('GET', `/api/clients/${c.data.id}`)).status, 200, 'le client est intact');
+});
