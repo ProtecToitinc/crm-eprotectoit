@@ -39,7 +39,7 @@ jobs:
           pid=$!
           trap 'kill "$pid" 2>/dev/null || true' EXIT
           for i in $(seq 1 30); do
-            if curl --silent --fail http://localhost:3055/api/meta > /dev/null; then break; fi
+            if curl --silent --fail http://localhost:3055/ > /dev/null; then break; fi
             sleep 1
           done
           test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3055/api/leads/count)" = "401"
