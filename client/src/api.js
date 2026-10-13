@@ -71,6 +71,7 @@ export const api = {
   meta: () => req('GET', '/meta'),
   geocode: () => req('POST', '/geocode'),
   stats: () => req('GET', '/stats'),
+  performance: (periode = 'mois') => req('GET', `/performance?periode=${encodeURIComponent(periode)}`),
   search: (q) => req('GET', `/search${qs({ q })}`),
 
   clients: {
