@@ -40,7 +40,9 @@ async function runRelances() {
   }
   // 2) Rappels programmés (client injoignable, « à rappeler »)
   for (const l of await db.all("SELECT * FROM leads WHERE statut='a_rappeler' AND rappel_at IS NOT NULL")) {
-    const when = parseSql(l.rappel_at), parts = localParts(new Date(when));
+    const when = parseSql(l.rappel_at);
+    if (!Number.isFinite(when)) continue; // Une date invalide ne doit pas interrompre toutes les relances.
+    const parts = localParts(new Date(when));
     if (await upsertTask({ key: `lead-rappel:${l.id}:${l.rappel_at}`, titre: `Rappeler ${nom(l)} (tentative ${(l.tentatives || 0) + 1})`, description: l.telephone, due_date: parts.date, due_time: parts.time, client_id: l.client_id, lead_id: l.id, type: 'lead_rappel', priorite: 'haute' })) created++;
   }
   // 3) Client intéressé -> tâche pour avancer
