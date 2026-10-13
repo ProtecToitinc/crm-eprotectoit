@@ -9,6 +9,7 @@ const sqlite3 = require('sqlite3');
 const db = require('./database');
 const { localParts, getSetting, setSetting } = require('./lib');
 const { audit } = require('./security');
+const remoteBackup = require('./remote-backup');
 
 const dataDir = path.dirname(db.dbPath);
 const backupsDir = process.env.BACKUPS_DIR || path.join(dataDir, 'backups');
@@ -62,6 +63,18 @@ async function create(kind = 'auto') {
     const meta = { name, kind, at: new Date().toISOString(), size: fs.statSync(file).size, counts, uploads: stats.files };
     fs.writeFileSync(path.join(dir, 'meta.json'), JSON.stringify(meta, null, 1));
     await setSetting('backup_last_ok', meta.at); await setSetting('backup_last_error', '');
+    if (remoteBackup.configured()) {
+      try {
+        const remote = await remoteBackup.mirror(dir, name);
+        await setSetting('backup_remote_last_ok', meta.at);
+        await setSetting('backup_remote_last_error', '');
+        meta.remote = remote;
+      } catch (err) {
+        await setSetting('backup_remote_last_error', errText(err));
+        meta.remote = { ok: false, message: 'Copie distante échouée; sauvegarde locale conservée' };
+        console.error('[backup-remote] échec :', errText(err));
+      }
+    }
     if (kind === 'auto') prune();
     return meta;
   } catch (e) {
@@ -120,6 +133,7 @@ function register(app, { auth, uploadsDirs }) {
   uploadDirs = uploadsDirs.filter(Boolean);
   app.get('/api/backups', auth, async (req, res) => res.json({
     backups: list(), lastOk: await getSetting('backup_last_ok'), lastError: await getSetting('backup_last_error'),
+    remoteConfigured: remoteBackup.configured(), remoteLastOk: await getSetting('backup_remote_last_ok'), remoteLastError: await getSetting('backup_remote_last_error'),
     policy: `Une sauvegarde par jour (3 h), ${KEEP.dailyDays} jours gardés, puis 1 par semaine (${KEEP.weeks} semaines) et 1 par mois (${KEEP.months} mois).`
   }));
   app.post('/api/backups', auth, async (req, res) => {
