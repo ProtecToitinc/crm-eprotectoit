@@ -18,6 +18,9 @@ import Opportunites from './pages/Opportunites';
 import Integrations from './pages/Integrations';
 import { api } from './api';
 
+// Référence stable pour éviter une boucle de chargements des intégrations.
+const integrationsApi = { ...api, meta: api.metaAds };
+
 export default function App() {
   const [auth, setAuth] = useState(null);
 
@@ -54,7 +57,7 @@ export default function App() {
             <Route path="/notes" element={<Notes />} />
             <Route path="/appels" element={<Appels />} />
             <Route path="/opportunites" element={<Opportunites api={api} />} />
-            <Route path="/integrations" element={<Integrations api={{...api, meta: api.metaAds}} />} />
+            <Route path="/integrations" element={<Integrations api={integrationsApi} />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </Layout>
