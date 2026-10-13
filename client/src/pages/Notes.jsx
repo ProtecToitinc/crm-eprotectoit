@@ -78,6 +78,7 @@ export default function Notes() {
   const navigate = useNavigate();
   const { openNoteModal, openDeal, refreshKey, bumpRefresh, showToast } = useUI();
   const [notes, setNotes] = useState(null);
+  const [clients, setClients] = useState([]);
   const [error, setError] = useState('');
   const [filter, setFilter] = useStoredChoice('crm_notes_filter', 'all', ['all', 'general', 'client']);
   const [sort, setSort] = useStoredChoice('crm_notes_sort', 'recent', SORTS.map(s => s.value));
@@ -87,6 +88,8 @@ export default function Notes() {
     api.notes.list().then(r => { setNotes(r || []); setError(''); }).catch(e => setError(e.message));
   }, []);
   useEffect(() => { load(); }, [load, refreshKey]);
+  // Vue « Par client » : tous les clients, même sans note, pour pouvoir en ajouter une
+  useEffect(() => { api.clients.list().then(l => setClients(l || [])).catch(() => {}); }, [refreshKey]);
 
   const counts = useMemo(() => {
     const all = notes || [];
@@ -109,15 +112,24 @@ export default function Notes() {
       if (!map.has(n.client_id)) map.set(n.client_id, { id: n.client_id, prenom: n.prenom, nom: n.nom, notes: [] });
       map.get(n.client_id).notes.push(n);
     });
+    const words = q.trim().split(/\s+/).filter(Boolean).map(norm);
+    clients.forEach(c => {
+      if (map.has(c.id)) return;
+      const hay = norm(`${c.prenom || ''} ${c.nom || ''} ${c.telephone || ''} ${c.ville || ''}`);
+      if (words.every(w => hay.includes(w))) map.set(c.id, { id: c.id, prenom: c.prenom, nom: c.nom, notes: [] });
+    });
     const list = [...map.values()];
-    const newest = g => Math.max(...g.notes.map(time));
-    const oldest = g => Math.min(...g.notes.map(time));
-    if (sort === 'recent') list.sort((a, b) => newest(b) - newest(a));
-    else if (sort === 'ancien') list.sort((a, b) => oldest(a) - oldest(b));
-    else if (sort === 'za') list.sort((a, b) => cmpText(fullName(b), fullName(a)));
-    else list.sort((a, b) => cmpText(fullName(a), fullName(b)));
-    return list;
-  }, [visible, filter, sort]);
+    const newest = g => (g.notes.length ? Math.max(...g.notes.map(time)) : -Infinity);
+    const oldest = g => (g.notes.length ? Math.min(...g.notes.map(time)) : Infinity);
+    const byName = (a, b) => cmpText(fullName(a), fullName(b));
+    // Les clients qui ont des notes d'abord, puis les autres par ordre alphabétique
+    const withNotes = list.filter(g => g.notes.length), without = list.filter(g => !g.notes.length).sort(byName);
+    if (sort === 'recent') withNotes.sort((a, b) => newest(b) - newest(a));
+    else if (sort === 'ancien') withNotes.sort((a, b) => oldest(a) - oldest(b));
+    else if (sort === 'za') withNotes.sort((a, b) => cmpText(fullName(b), fullName(a)));
+    else withNotes.sort(byName);
+    return [...withNotes, ...without];
+  }, [visible, filter, sort, clients, q]);
 
   const togglePin = async n => {
     try { await api.notes.update(n.id, { epingle: n.epingle ? 0 : 1 }); bumpRefresh(); } catch (e) { showToast(e.message); }
@@ -144,7 +156,7 @@ export default function Notes() {
 
         <div style={{ position: 'relative', flex: '1 1 180px', minWidth: 150, maxWidth: 340 }}>
           <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-faint)' }} />
-          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Filtrer les notes…" style={{ ...inputStyle, height: 38, paddingLeft: 34 }} />
+          <input value={q} onChange={e => setQ(e.target.value)} placeholder={filter === 'client' ? 'Chercher un client ou une note…' : 'Filtrer les notes…'} style={{ ...inputStyle, height: 38, paddingLeft: 34 }} />
         </div>
 
         <SortSelect value={sort} onChange={setSort} options={SORTS} />
@@ -165,7 +177,7 @@ export default function Notes() {
           <button type="button" className="btn-accent" onClick={() => openNoteModal(null)} style={btnAccent}><Plus size={16} strokeWidth={2.4} />Nouvelle note</button>
         </div>
       )}
-      {notes && notes.length > 0 && visible.length === 0 && (
+      {notes && notes.length > 0 && visible.length === 0 && filter !== 'client' && (
         <div style={{ ...cardStyle, padding: '30px 20px', textAlign: 'center', color: 'var(--fg-muted)', fontSize: 13.5 }}>Aucune note ne correspond.</div>
       )}
 
@@ -175,12 +187,12 @@ export default function Notes() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 2px 10px' }}>
               <Avatar client={g} size={30} />
               <button type="button" className="linkbtn" onClick={() => openDeal(g.id)} style={{ minWidth: 0, textAlign: 'left', border: 'none', background: 'transparent', padding: 0, color: 'var(--fg)', fontFamily: 'inherit', fontSize: 15, fontWeight: 800, cursor: 'pointer' }}>{fullName(g)}</button>
-              <span style={{ flexShrink: 0, fontSize: 12.5, color: 'var(--fg-faint)', fontWeight: 600 }}>{g.notes.length} note{g.notes.length > 1 ? 's' : ''}</span>
+              <span style={{ flexShrink: 0, fontSize: 12.5, color: 'var(--fg-faint)', fontWeight: 600 }}>{g.notes.length ? `${g.notes.length} note${g.notes.length > 1 ? 's' : ''}` : 'aucune note'}</span>
               <button type="button" className="linkbtn" onClick={() => openNoteModal(g.id)} style={{ flexShrink: 0, marginLeft: 'auto', border: 'none', background: 'transparent', color: 'var(--fg-muted)', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>+ Ajouter</button>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))', gap: 14 }}>
+            {g.notes.length > 0 && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))', gap: 14 }}>
               {g.notes.map(n => <NoteCard key={n.id} n={n} showClient={false} {...cardProps} />)}
-            </div>
+            </div>}
           </section>
         ))
       ) : (

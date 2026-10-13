@@ -118,7 +118,7 @@ export function Modal({ title, onClose, children, footer, onSubmit, width = 520 
 export function ClientPicker({ clients, value, onChange, autoFocus, onNew }) {
   const [q, setQ] = useState('');
   const selected = clients.find(c => String(c.id) === String(value));
-  const matches = useMemo(() => clients.filter(c => matchClient(c, q)).slice(0, 6), [clients, q]);
+  const matches = useMemo(() => clients.filter(c => matchClient(c, q)), [clients, q]);
 
   if (selected) {
     return (
@@ -147,6 +147,7 @@ export function ClientPicker({ clients, value, onChange, autoFocus, onNew }) {
         />
       </div>
       <div style={{ marginTop: 6, border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden', background: 'var(--surface)' }}>
+        <div style={{ maxHeight: 264, overflowY: 'auto' }}>
         {matches.map(c => (
           <div key={c.id} className="row-hover" onClick={() => onChange(c.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border)' }}>
             <Avatar client={c} size={28} />
@@ -157,6 +158,8 @@ export function ClientPicker({ clients, value, onChange, autoFocus, onNew }) {
           </div>
         ))}
         {matches.length === 0 && <div style={{ padding: '12px', fontSize: 13, color: 'var(--fg-faint)', borderBottom: onNew ? '1px solid var(--border)' : 'none' }}>Aucun client trouvé</div>}
+        </div>
+        <div style={{ padding: '6px 12px', fontSize: 11.5, color: 'var(--fg-faint)', borderTop: '1px solid var(--border)' }}>{matches.length} client{matches.length > 1 ? 's' : ''} sur {clients.length} — fais défiler ou tape pour chercher</div>
         {onNew && (
           <div className="row-hover" onClick={() => onNew(q)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', cursor: 'pointer', fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>
             <UserPlus size={15} />Nouveau client{q.trim() ? ` « ${q.trim()} »` : ''}
