@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Phone, Check } from 'lucide-react';
+import { Phone, Check, ArrowUpRight, BellRing, Target, FileText, HardHat } from 'lucide-react';
 import { useUI } from '../context/UIContext';
 import { STAGES, SERVICE_HUE, money } from '../constants';
 import { api } from '../api';
@@ -64,6 +64,29 @@ export default function Dashboard() {
 
   return (
     <div className="fadein">
+      <section style={{ marginBottom: 20, padding: '20px 22px', borderRadius: 16, border: '1px solid var(--border)', background: 'var(--surface)', boxShadow: 'var(--shadow)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: '.11em', textTransform: 'uppercase' }}>Centre de travail</div>
+            <h2 style={{ margin: '5px 0 3px', fontSize: 21, fontWeight: 800, letterSpacing: '-.025em' }}>Chaque client, à la bonne étape.</h2>
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--fg-muted)' }}>Commence par les demandes urgentes, puis avance les soumissions et les chantiers.</p>
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
+          {[
+            { label: 'À faire aujourd’hui', detail: 'Rappels et priorités', icon: BellRing, to: '/a-traiter' },
+            { label: 'Prospects', detail: 'Répondre aux demandes', icon: Target, to: '/opportunites' },
+            { label: 'Soumissions', detail: 'Préparer et envoyer', icon: FileText, to: '/soumissions' },
+            { label: 'Chantiers', detail: 'Planifier les travaux', icon: HardHat, to: '/chantiers' }
+          ].map(({ label, detail, icon: Icon, to }) => (
+            <button key={to} onClick={() => navigate(to)} style={{ textAlign: 'left', display: 'flex', gap: 10, alignItems: 'center', padding: '13px 12px', border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface-2)', color: 'var(--fg)', fontFamily: 'inherit', cursor: 'pointer' }}>
+              <span style={{ display: 'grid', placeItems: 'center', flexShrink: 0, width: 36, height: 36, borderRadius: 9, background: 'var(--surface)', color: 'var(--accent)' }}><Icon size={19} /></span>
+              <span style={{ flex: 1, minWidth: 0 }}><strong style={{ display: 'block', fontSize: 12.8 }}>{label}</strong><span style={{ display: 'block', fontSize: 11, marginTop: 3, color: 'var(--fg-muted)' }}>{detail}</span></span>
+              <ArrowUpRight size={15} style={{ flexShrink: 0, color: 'var(--fg-muted)' }} />
+            </button>
+          ))}
+        </div>
+      </section>
       <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
         {kpis.map((k, i) => (
           <div key={i} className="kard" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '18px 20px', boxShadow: 'var(--shadow)' }}>
