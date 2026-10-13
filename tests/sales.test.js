@@ -124,11 +124,6 @@ test('chantiers : ajout manuel, suppression définitive qui ne se recrée pas, �
   await api('DELETE', `/api/chantiers/${made.data.id}`);
   await api('POST', '/api/relances/run');
   assert.equal((await api('GET', '/api/chantiers')).data.filter(x => x.opportunite_id === o.data.id).length, 0, 'un chantier supprimé ne revient pas');
-  assert.equal((await api('DELETE', '/api/chantiers', {})).status, 400, 'confirmation obligatoire');
-  const wiped = await api('DELETE', '/api/chantiers', { confirm: 'EFFACER' });
-  assert.equal(wiped.status, 200);
-  assert.equal((await api('GET', '/api/chantiers')).data.length, 0);
-  await api('POST', '/api/relances/run');
-  assert.equal((await api('GET', '/api/chantiers')).data.length, 0, 'rien n’est recréé après « tout effacer »');
+  assert.equal((await api('DELETE', '/api/chantiers', { confirm: 'EFFACER' })).status === 200, false, 'plus de suppression en bloc');
   assert.equal((await api('GET', `/api/clients/${c.data.id}`)).status, 200, 'le client est intact');
 });

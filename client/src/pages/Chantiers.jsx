@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Camera, Trash2, Plus } from 'lucide-react';
+import { Camera, Trash2, Plus, ListChecks } from 'lucide-react';
 import { api } from '../api';
 import { cardStyle, btnGhost, btnAccent, btnDanger, inputStyle, textareaStyle, Field, Modal, ClientPicker } from '../components/ui';
-import { useLoad, ErrorNote, CallButton, Empty, Loading, Pill, Stat, statGrid, dollars, dollars2, notifyBadges } from '../components/bits';
+import { useLoad, ErrorNote, CallButton, Empty, Loading, Pill, Stat, statGrid, dollars, dollars2, notifyBadges, useSelection, SelectionBar } from '../components/bits';
 import { fmtDay } from '../lib/dates';
 import { useUI } from '../context/UIContext';
 
@@ -23,9 +23,14 @@ export default function Chantiers() {
   const [filter, setFilter] = useState('actifs');
   const [creating, setCreating] = useState(false);
   const [msg, setMsg] = useState('');
-  const wipe = async () => {
-    if (!window.confirm('Effacer TOUS les chantiers (et leurs photos)? Les clients, opportunités et soumissions ne sont pas touchés. Cette action est définitive.')) return;
-    try { const r = await api.chantiers.deleteAll(); setMsg(`${r.deleted} chantier(s) effacé(s)`); reload(); notifyBadges(); } catch (e) { setMsg(e.message); }
+  const sel = useSelection();
+  const [deleting, setDeleting] = useState(false);
+  const removeSelected = async () => {
+    const n = sel.ids.size;
+    if (!n || !window.confirm(`Supprimer ${n} chantier${n > 1 ? 's' : ''} (et leurs photos)? Les clients, opportunités et soumissions ne sont pas touchés.`)) return;
+    setDeleting(true);
+    try { for (const id of sel.ids) await api.chantiers.delete(id); setMsg(''); } catch (e) { setMsg(e.message); }
+    setDeleting(false); sel.exit(); reload(); notifyBadges();
   };
   const list = (data || []).filter(c => filter === 'tous' || (filter === 'actifs' ? !['paye'].includes(c.statut) : c.statut === filter));
 
@@ -34,8 +39,9 @@ export default function Chantiers() {
       <ErrorNote>{error || msg}</ErrorNote>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
         <button style={{ ...btnAccent, height: 46 }} onClick={() => setCreating(true)}><Plus size={18} /> Nouveau chantier</button>
-        {(data || []).length > 0 && <button style={btnDanger} onClick={wipe}><Trash2 size={15} /> Tout effacer</button>}
+        {(data || []).length > 0 && <button style={btnGhost} onClick={sel.on ? sel.exit : sel.enter}><ListChecks size={16} /> {sel.on ? 'Annuler la sélection' : 'Sélectionner pour supprimer'}</button>}
       </div>
+      {sel.on && <div style={{ marginBottom: 12 }}><SelectionBar noun="chantier" count={sel.ids.size} total={list.length} busy={deleting} onSelectAll={() => sel.selectAll(list.map(c => c.id))} onClear={sel.clear} onExit={sel.exit} onDelete={removeSelected} /></div>}
       <div style={statGrid}>
         {CH_STATUTS.slice(0, 4).map(([k, label, hue]) => <Stat key={k} label={label} value={(data || []).filter(c => c.statut === k).length} hue={hue} />)}
       </div>
@@ -49,9 +55,10 @@ export default function Chantiers() {
         {list.map(c => {
           const [, label, hue] = statutInfo(c.statut);
           return (
-            <article key={c.id} style={{ ...cardStyle, padding: 16 }}>
+            <article key={c.id} style={{ ...cardStyle, padding: 16, borderColor: sel.has(c.id) ? '#c4584f' : undefined }} onClick={sel.on ? () => sel.toggle(c.id) : undefined}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
-                <div style={{ minWidth: 0 }}>
+                {sel.on && <input type="checkbox" aria-label={`Sélectionner ${fullName(c)}`} checked={sel.has(c.id)} onChange={() => sel.toggle(c.id)} onClick={e => e.stopPropagation()} style={{ width: 20, height: 20, accentColor: '#c4584f', marginRight: 4 }} />}
+                <div style={{ minWidth: 0, flex: 1 }}>
                   <button onClick={() => setOpenId(c.id)} style={{ all: 'unset', cursor: 'pointer', fontWeight: 800, fontSize: 16 }}>{fullName(c)}</button>
                   <div style={{ fontSize: 12.5, color: 'var(--fg-muted)', marginTop: 3 }}>{[c.adresse, c.ville].filter(Boolean).join(', ') || c.titre}</div>
                   <div style={{ fontSize: 12, color: 'var(--fg-faint)', marginTop: 2 }}>{c.date_debut ? `Début : ${fmtDay(c.date_debut)}` : 'Date non planifiée'} · {c.nb_photos} photo(s) · {dollars(c.valeur)}</div>

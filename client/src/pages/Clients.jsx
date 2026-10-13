@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Users, Search, X, Phone } from 'lucide-react';
+import { Plus, Users, Search, X, Phone, ListChecks } from 'lucide-react';
+import { useSelection, SelectionBar } from '../components/bits';
 import { useUI } from '../context/UIContext';
 import { SERVICE_HUE, STAGE_MAP, money, soft, initials, avatarColor } from '../constants';
 import { api } from '../api';
@@ -52,6 +53,8 @@ export default function Clients() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
+  const sel = useSelection();
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(() => {
     api.clients.list().then(r => { setClients(r || []); setError(''); }).catch(e => setError(e.message));
@@ -119,11 +122,19 @@ export default function Clients() {
 
         <SortSelect value={sort} onChange={setSort} options={SORTS} />
 
-        <button className="btn-accent" onClick={() => setShowForm(true)} style={{ ...btnAccent, marginLeft: 'auto' }}>
+        <button type="button" className="btn-ghost" onClick={sel.on ? sel.exit : sel.enter} style={{ ...btnGhost, marginLeft: 'auto' }}><ListChecks size={16} />{sel.on ? 'Annuler la sélection' : 'Sélectionner'}</button>
+        <button className="btn-accent" onClick={() => setShowForm(true)} style={btnAccent}>
           <Plus size={16} strokeWidth={2.4} />Ajouter un client
         </button>
       </div>
 
+      {sel.on && <SelectionBar noun="client" count={sel.ids.size} total={rows.length} busy={deleting} onSelectAll={() => sel.selectAll(rows.map(c => c.id))} onClear={sel.clear} onExit={sel.exit} onDelete={async () => {
+        const n = sel.ids.size;
+        if (!n || !window.confirm(`Supprimer ${n} client${n > 1 ? 's' : ''} avec TOUT leur dossier (opportunités, soumissions, notes, appels, documents)?\n\nRécupérable ensuite depuis Sécurité et sauvegardes → Historique des modifications.`)) return;
+        setDeleting(true); let ok = 0;
+        try { for (const id of sel.ids) { await api.clients.delete(id); ok++; } } catch (e) { showToast(e.message); }
+        setDeleting(false); sel.exit(); bumpRefresh(); load(); showToast(`${ok} client${ok > 1 ? 's' : ''} supprimé${ok > 1 ? 's' : ''}`);
+      }} />}
       <div style={{ ...cardStyle, overflow: 'hidden' }}>
         <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', fontSize: 14, fontWeight: 800 }}>
           {clients ? `${rows.length} client${rows.length !== 1 ? 's' : ''}` : 'Clients'}
@@ -156,8 +167,9 @@ export default function Clients() {
                 const sh = c.dernier_service ? SERVICE_HUE[c.dernier_service] || '#9aa0a6' : null;
                 const stage = c.derniere_etape ? STAGE_MAP[c.derniere_etape] : null;
                 return (
-                  <div key={c.id} className="row-hover clients-row" onClick={() => openDeal(c.id)} style={{ padding: '13px 20px', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: 13.5, alignItems: 'center' }}>
+                  <div key={c.id} className="row-hover clients-row" onClick={() => (sel.on ? sel.toggle(c.id) : openDeal(c.id))} style={{ padding: '13px 20px', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: 13.5, alignItems: 'center', background: sel.has(c.id) ? soft('#c4584f') : undefined }}>
                     <div className="c-name" style={{ display: 'flex', alignItems: 'center', gap: 11, minWidth: 0 }}>
+                      {sel.on && <input type="checkbox" aria-label={`Sélectionner ${fullName(c)}`} checked={sel.has(c.id)} onChange={() => sel.toggle(c.id)} onClick={e => e.stopPropagation()} style={{ width: 18, height: 18, flexShrink: 0, accentColor: '#c4584f' }} />}
                       <div style={{ width: 32, height: 32, borderRadius: '50%', background: soft(ah), color: ah, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, flexShrink: 0 }}>
                         {initials(c.prenom, c.nom) || '?'}
                       </div>
