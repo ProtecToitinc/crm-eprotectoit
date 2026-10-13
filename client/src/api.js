@@ -164,6 +164,7 @@ export const api = {
     status: () => req('GET','/drive/status'),
     items: () => req('GET','/drive/items'),
     sync: data => req('POST','/drive/sync',data),
+    run: () => req('GET','/drive/run'),
     resolve: (id, data) => req('POST', `/drive/items/${encodeURIComponent(id)}/resolve`, data),
     setAuto: enabled => req('POST', '/drive/auto', { enabled })
   },

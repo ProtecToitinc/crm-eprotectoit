@@ -457,6 +457,8 @@ async function processParsed(run, file, folder, parsed, superseded, revisionOf) 
 }
 
 let active = false;
+let progress = null; // { done, total, name } pendant une synchronisation
+let lastRun = null;  // dernier passage lancé depuis le CRM (aperçu ou réel)
 async function buildRun({ dry }) {
   const gs = await google.status();
   if (!gs?.connected || !gs?.drive) return { error: 'Google Drive doit être autorisé (Intégrations → Connecter Google)' };
@@ -475,10 +477,12 @@ async function sync({ dry = true, full = false, limit = 0 } = {}) {
     const leadsId = (await getSetting('drive_leads_id')) || LEADS;
     const folders = await listAll(drive, `'${q(leadsId)}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`);
     const sources = [{ id: leadsId, name: 'Leads', root: true }, ...folders, { id: rootId, name: 'Soumissions', root: true }];
+    progress = { done: 0, total: sources.length, name: '' };
     const last = await getSetting('drive_last_sync');
     const cutoff = !full && last ? Date.parse(last) - 10 * 60 * 1000 : 0;
     let encountered = 0;
     for (const folder of sources) {
+      progress.name = folder.name;
       const files = await listAll(drive, `'${q(folder.id)}' in parents and trashed=false`);
       const sheets = files.filter(isSheet);
       const asFolder = folder.root ? null : folder;
@@ -507,6 +511,7 @@ async function sync({ dry = true, full = false, limit = 0 } = {}) {
           await saveItem(run, file, 'file', { status: 'erreur', message: safeError(error) }).catch(() => {});
         }
       }
+      progress.done++;
       if (limit > 0 && encountered >= limit) break;
     }
     if (!dry) {
@@ -520,7 +525,25 @@ async function sync({ dry = true, full = false, limit = 0 } = {}) {
     if (/invalid_grant|unauthorized_client|invalid_client/i.test(String(error?.message))) google.noteAuthError(error);
     if (!run?.dry) await setSetting('drive_last_error', safeError(error)).catch(() => {});
     return { ok: false, dry, message: safeError(error), details: [] };
-  } finally { active = false; }
+  } finally { active = false; progress = null; }
+}
+/** Lance la synchronisation en arrière-plan (la requête HTTP reviendrait trop tard pour le proxy) ; le CRM interroge /api/drive/run. */
+async function startSync(opts = {}) {
+  if (active) return { ok: false, message: 'Synchronisation déjà en cours' };
+  const gs = await google.status();
+  if (!gs?.connected || !gs?.drive) return { ok: false, message: 'Google Drive doit être autorisé (Intégrations → Connecter Google)' };
+  const dry = opts.dry !== false;
+  lastRun = { running: true, dry, started: new Date().toISOString() };
+  sync(opts).then(async result => {
+    lastRun = { running: false, dry, started: lastRun.started, finished: new Date().toISOString(), result };
+    await setSetting('drive_last_run', JSON.stringify(lastRun)).catch(() => {});
+  }).catch(async e => { lastRun = { running: false, dry, started: lastRun.started, finished: new Date().toISOString(), result: { ok: false, message: safeError(e), details: [] } }; });
+  return { ok: true, started: true };
+}
+async function currentRun() {
+  if (lastRun) return { ...lastRun, progress };
+  const saved = parseJson(await getSetting('drive_last_run'));
+  return saved.started ? { ...saved, progress: null } : { running: false, progress: null };
 }
 /** Traite immédiatement un seul élément après un choix manuel (lier / créer). */
 async function resolveItem(driveId, { action, client_id }) {
@@ -551,12 +574,13 @@ async function status() {
   const clients = review.length ? await db.all('SELECT id,prenom,nom,telephone,ville FROM clients ORDER BY nom,prenom') : [];
   return {
     lastSync: await getSetting('drive_last_sync'), summary: parseJson(await getSetting('drive_last_result')), lastError: await getSetting('drive_last_error'),
-    autoEnabled: (await getSetting('drive_sync_enabled')) === '1', review, clients, busy: active
+    autoEnabled: (await getSetting('drive_sync_enabled')) === '1', review, clients, busy: active, progress
   };
 }
 function register(app, { auth }) {
   app.get('/api/drive/status', auth, async (req, res) => res.json(await status()));
-  app.post('/api/drive/sync', auth, async (req, res) => res.json(await sync({ dry: req.body?.dry !== false, full: !!req.body?.full, limit: Math.max(0, Math.min(1000, Number(req.body?.limit) || 0)) })));
+  app.post('/api/drive/sync', auth, async (req, res) => res.json(await startSync({ dry: req.body?.dry !== false, full: !!req.body?.full, limit: Math.max(0, Math.min(1000, Number(req.body?.limit) || 0)) })));
+  app.get('/api/drive/run', auth, async (req, res) => res.json(await currentRun()));
   app.get('/api/drive/items', auth, async (req, res) => res.json(await db.all('SELECT drive_id,kind,name,client_id,opportunite_id,quote_id,status,message,synced_at,web_link FROM drive_items ORDER BY synced_at DESC LIMIT 1000')));
   app.post('/api/drive/items/:id/resolve', auth, async (req, res) => { const r = await resolveItem(req.params.id, req.body || {}); res.status(r.status || (r.ok ? 200 : 500)).json(r); });
   // La synchronisation automatique ne s'active que lorsque plus rien n'est à valider.
@@ -571,4 +595,4 @@ function register(app, { auth }) {
     res.json({ ok: true, enabled: enable });
   });
 }
-module.exports = { register, sync, status, parseContract, match, money, mergeSnapshot, hasNumero, findSuperseded, resolveItem };
+module.exports = { register, sync, startSync, currentRun, status, parseContract, match, money, mergeSnapshot, hasNumero, findSuperseded, resolveItem };

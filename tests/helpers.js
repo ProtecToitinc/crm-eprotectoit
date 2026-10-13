@@ -8,9 +8,13 @@ const path = require('node:path');
 const TEST_PASSWORD = 'mot-de-passe-de-test-123';
 let counter = 0;
 
+function freePort() {
+  return new Promise((resolve, reject) => { const s = require('node:net').createServer(); s.listen(0, '127.0.0.1', () => { const { port } = s.address(); s.close(() => resolve(port)); }); s.on('error', reject); });
+}
+
 async function startServer(extraEnv = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'crm-test-'));
-  const port = 3300 + Math.floor(Math.random() * 500) + (counter++ % 7);
+  const port = await freePort();
   const env = { ...process.env, PORT: String(port), DB_PATH: path.join(dir, 'crm.db'), DISABLE_JOBS: '1', CRM_PASSWORD: TEST_PASSWORD, ...extraEnv };
   delete env.GOOGLE_CLIENT_ID; delete env.GOOGLE_CLIENT_SECRET;
   const child = spawn(process.execPath, ['server.js'], { cwd: path.resolve(__dirname, '../server'), env, stdio: ['ignore', 'pipe', 'pipe'] });

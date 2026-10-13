@@ -38,7 +38,25 @@ export default function Integrations() {
     const popup = window.open(url, 'google-auth', 'width=520,height=700');
     const t = setInterval(() => { if (!popup || popup.closed) { clearInterval(t); refreshAll(); } }, 800);
   };
-  const sync = dry => run(async () => { const r = await api.drive.sync({ dry, full: dry }); if (dry) setPreview(r); else setPreview(null); return r; }, dry ? 'Aperçu prêt — rien n’a été modifié' : 'Synchronisation terminée');
+  const [progress, setProgress] = useState(null);
+  // La synchronisation tourne en arrière-plan sur le serveur : on interroge son avancement.
+  const follow = async () => {
+    for (let i = 0; i < 600; i++) {
+      const r = await api.drive.run();
+      setProgress(r.running ? r.progress || { done: 0, total: 0 } : null);
+      if (!r.running) { setPreview(r.result ? { ...r.result, dry: r.dry } : null); return r; }
+      await new Promise(res => setTimeout(res, 2000));
+    }
+    return null;
+  };
+  useEffect(() => { api.drive.run().then(r => { if (r.running) { setBusy(true); follow().finally(() => { setBusy(false); refreshAll(); }); } else if (r.result) setPreview({ ...r.result, dry: r.dry }); }).catch(() => {}); }, []); // eslint-disable-line
+  const sync = dry => run(async () => {
+    const started = await api.drive.sync({ dry, full: dry });
+    if (!started.ok) return started;
+    const r = await follow();
+    if (r?.result && r.result.ok === false) return { ok: false, message: r.result.message };
+    return { ok: true };
+  }, dry ? 'Aperçu prêt — rien n’a été modifié' : 'Synchronisation terminée');
   const resolve = (id, action, client_id) => run(() => api.drive.resolve(id, { action, client_id }), 'Choix appliqué');
   const copy = async v => { await navigator.clipboard.writeText(v); showToast('Copié'); };
 
@@ -78,7 +96,8 @@ export default function Integrations() {
           <button style={btnGhost} disabled={busy || (!st?.autoEnabled && (st?.review?.length > 0 || !st?.lastSync))} onClick={() => run(() => api.drive.setAuto(!st?.autoEnabled), st?.autoEnabled ? 'Synchronisation automatique désactivée' : 'Synchronisation automatique activée')}>{st?.autoEnabled ? 'Désactiver l’auto' : '3. Activer l’auto'}</button>
           <button style={btnGhost} onClick={refreshAll}><RefreshCw size={15} /> Actualiser</button>
         </div>
-        {preview && (
+        {progress && <p role="status" style={{ marginTop: 12, color: 'var(--accent)', fontWeight: 700 }}>Analyse en cours… {progress.done}/{progress.total} dossiers{progress.name ? ` (${progress.name})` : ''}. Tu peux laisser la page ouverte.</p>}
+        {preview && !progress && (
           <div style={{ marginTop: 14 }}>
             <strong>{preview.created} à créer · {preview.matched} rapprochés · {preview.review} à valider · {preview.ignored || 0} ignorés · {preview.errors} erreurs</strong>
             <details style={{ marginTop: 8 }}><summary style={{ cursor: 'pointer' }}>Voir le détail ({preview.details?.length || 0})</summary>
@@ -118,9 +137,9 @@ export default function Integrations() {
       <Section title="Meta Ads — leads">
         <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 0 }}>Les jetons sont chiffrés et ne sont jamais réaffichés. Sans jeton, tu peux brancher Make ou Zapier avec le webhook plus bas.</p>
         <Field label="ID de la Page Facebook"><input style={inputStyle} value={form.metaPageId || ''} onChange={e => setForm(f => ({ ...f, metaPageId: e.target.value }))} inputMode="numeric" /></Field>
-        <Field label={`Jeton d’accès de la Page ${cfg.data?.meta.hasToken ? '(déjà enregistré)' : ''}`} style={{ marginTop: 10 }}><input type="password" autoComplete="off" style={inputStyle} placeholder="Laisser vide pour conserver" value={form.metaPageToken || ''} onChange={e => setForm(f => ({ ...f, metaPageToken: e.target.value }))} /></Field>
+        <Field label={`Jeton d’accès de la Page ${cfg.data?.meta.hasToken ? '(déjà enregistré)' : ''}`} style={{ marginTop: 10 }}><input type="password" name="meta-page-token" autoComplete="new-password" style={inputStyle} placeholder="Laisser vide pour conserver" value={form.metaPageToken || ''} onChange={e => setForm(f => ({ ...f, metaPageToken: e.target.value }))} /></Field>
         <Field label="ID du compte publicitaire (pour les coûts)" style={{ marginTop: 10 }}><input style={inputStyle} value={form.metaAdAccountId || ''} onChange={e => setForm(f => ({ ...f, metaAdAccountId: e.target.value }))} placeholder="Ex. 1234567890" /></Field>
-        <Field label={`Jeton publicitaire (ads_read, optionnel) ${cfg.data?.ads?.hasToken ? '(déjà enregistré)' : ''}`} style={{ marginTop: 10 }}><input type="password" autoComplete="off" style={inputStyle} value={form.metaAdsToken || ''} onChange={e => setForm(f => ({ ...f, metaAdsToken: e.target.value }))} /></Field>
+        <Field label={`Jeton publicitaire (ads_read, optionnel) ${cfg.data?.ads?.hasToken ? '(déjà enregistré)' : ''}`} style={{ marginTop: 10 }}><input type="password" name="meta-ads-token" autoComplete="new-password" style={inputStyle} value={form.metaAdsToken || ''} onChange={e => setForm(f => ({ ...f, metaAdsToken: e.target.value }))} /></Field>
         <p style={{ fontSize: 13 }}>Dernière vérification réussie : <b>{when(cfg.data?.meta.lastOk)}</b>. {cfg.data?.meta.lastError && <span style={{ color: '#c4584f' }}>{cfg.data.meta.lastError}</span>}</p>
         <div style={row}>
           <button style={btnAccent} onClick={save} disabled={busy}>Enregistrer</button>
