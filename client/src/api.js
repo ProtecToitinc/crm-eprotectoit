@@ -41,8 +41,11 @@ function qs(params = {}) {
 }
 
 export const api = {
-  login: (password) => req('POST', '/auth/login', { password }),
+  login: (password, user) => req('POST', '/auth/login', { password, user }),
   verify: (token) => req('POST', '/auth/verify', { token }),
+  logout: () => req('POST', '/auth/logout', {}),
+  sessions: () => req('GET', '/auth/sessions'),
+  revokeOtherSessions: () => req('POST', '/auth/sessions/revoke-others', {}),
 
   meta: () => req('GET', '/meta'),
   geocode: () => req('POST', '/geocode'),
@@ -54,7 +57,8 @@ export const api = {
     get: (id) => req('GET', `/clients/${id}`),
     create: (data) => req('POST', '/clients', data),
     update: (id, data) => req('PUT', `/clients/${id}`, data),
-    delete: (id) => req('DELETE', `/clients/${id}`)
+    delete: (id) => req('DELETE', `/clients/${id}`),
+    setResponsable: (id, responsable) => req('PUT', `/clients/${id}/responsable`, { responsable })
   },
 
   opportunites: {
@@ -114,13 +118,19 @@ export const api = {
   },
 
   leads: {
-    list: () => req('GET','/leads'),
-    count: () => req('GET','/leads/count'),
-    create: data => req('POST','/leads',data),
-    update: (id,data) => req('PUT',`/leads/${id}`,data),
-    remove: id => req('DELETE',`/leads/${id}`),
-    convert: id => req('POST',`/leads/${id}/convertir`,{}),
-    markSeen: () => req('POST','/leads/mark-seen',{})
+    list: (params) => req('GET', `/leads${qs(params)}`),
+    get: id => req('GET', `/leads/${id}`),
+    count: () => req('GET', '/leads/count'),
+    create: data => req('POST', '/leads', data),
+    update: (id, data) => req('PUT', `/leads/${id}`, data),
+    remove: id => req('DELETE', `/leads/${id}`),
+    convert: id => req('POST', `/leads/${id}/convertir`, {}),
+    markSeen: () => req('POST', '/leads/mark-seen', {}),
+    contact: (id, data) => req('POST', `/leads/${id}/contact`, data),
+    addNote: (id, contenu) => req('POST', `/leads/${id}/notes`, { contenu }),
+    deleteNote: (id, noteId) => req('DELETE', `/leads/${id}/notes/${noteId}`),
+    take: id => req('POST', `/leads/${id}/prendre`, {}),
+    release: id => req('POST', `/leads/${id}/liberer`, {})
   },
   integrations: {
     get: () => req('GET','/integrations'),
@@ -133,8 +143,45 @@ export const api = {
     status: () => req('GET','/drive/status'),
     items: () => req('GET','/drive/items'),
     sync: data => req('POST','/drive/sync',data),
-    link: (id,client_id) => req('POST',`/drive/items/${encodeURIComponent(id)}/link`,{client_id}),
-    create: id => req('POST',`/drive/items/${encodeURIComponent(id)}/create`,{})
+    resolve: (id, data) => req('POST', `/drive/items/${encodeURIComponent(id)}/resolve`, data),
+    setAuto: enabled => req('POST', '/drive/auto', { enabled })
+  },
+  health: () => req('GET', '/health'),
+  attention: () => req('GET', '/attention'),
+  relances: { run: () => req('POST', '/relances/run', {}) },
+  suiviSoumissions: {
+    get: () => req('GET', '/suivi-soumissions'),
+    sent: (id, date_envoi) => req('POST', `/quotes/${id}/envoyee`, { date_envoi }),
+    followUp: (id, data) => req('POST', `/quotes/${id}/suivi`, data),
+    lost: (id, raison) => req('POST', `/quotes/${id}/perdue`, { raison })
+  },
+  chantiers: {
+    list: () => req('GET', '/chantiers'),
+    get: id => req('GET', `/chantiers/${id}`),
+    create: data => req('POST', '/chantiers', data),
+    update: (id, data) => req('PUT', `/chantiers/${id}`, data),
+    delete: id => req('DELETE', `/chantiers/${id}`),
+    addPhoto: (id, formData) => req('POST', `/chantiers/${id}/photos`, formData, true),
+    deletePhoto: (id, photoId) => req('DELETE', `/chantiers/${id}/photos/${photoId}`)
+  },
+  rentabilite: {
+    list: () => req('GET', '/rentabilite'),
+    get: oppId => req('GET', `/rentabilite/${oppId}`),
+    save: (oppId, data) => req('PUT', `/rentabilite/${oppId}`, data)
+  },
+  ads: {
+    dashboard: params => req('GET', `/ads/dashboard${qs(params)}`),
+    sync: () => req('POST', '/ads/sync', {})
+  },
+  backups: {
+    list: () => req('GET', '/backups'),
+    create: () => req('POST', '/backups', {}),
+    restore: (name) => req('POST', `/backups/${name}/restore`, { confirm: name }),
+    remove: name => req('DELETE', `/backups/${name}`)
+  },
+  audit: {
+    list: params => req('GET', `/audit${qs(params)}`),
+    restore: id => req('POST', `/audit/${id}/restore`, {})
   },
   metaAds: {
     poll: () => req('POST','/meta/poll',{}),

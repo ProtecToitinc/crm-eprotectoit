@@ -1,0 +1,170 @@
+import React, { useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Camera, Trash2 } from 'lucide-react';
+import { api } from '../api';
+import { cardStyle, btnGhost, btnAccent, btnDanger, inputStyle, textareaStyle, Field, Modal } from '../components/ui';
+import { useLoad, ErrorNote, CallButton, Empty, Loading, Pill, Stat, statGrid, dollars, dollars2, notifyBadges } from '../components/bits';
+import { fmtDay } from '../lib/dates';
+import { useUI } from '../context/UIContext';
+
+export const CH_STATUTS = [
+  ['contrat_signe', 'Contrat signé', '#b27a3e'],
+  ['planifie', 'Travaux planifiés', '#6b8cae'],
+  ['en_cours', 'Travaux en cours', '#c8924a'],
+  ['termine', 'Travaux terminés', '#5f9d5f'],
+  ['paye', 'Facture payée', '#3f7f4f']
+];
+const statutInfo = k => CH_STATUTS.find(s => s[0] === k) || CH_STATUTS[0];
+const fullName = c => [c.prenom, c.nom].filter(Boolean).join(' ') || 'Client';
+
+export default function Chantiers() {
+  const { data, error, loading, reload } = useLoad(() => api.chantiers.list());
+  const [openId, setOpenId] = useState(null);
+  const [filter, setFilter] = useState('actifs');
+  const list = (data || []).filter(c => filter === 'tous' || (filter === 'actifs' ? !['paye'].includes(c.statut) : c.statut === filter));
+
+  return (
+    <div>
+      <ErrorNote>{error}</ErrorNote>
+      <div style={statGrid}>
+        {CH_STATUTS.slice(0, 4).map(([k, label, hue]) => <Stat key={k} label={label} value={(data || []).filter(c => c.statut === k).length} hue={hue} />)}
+      </div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+        {[['actifs', 'En cours (non payés)'], ...CH_STATUTS.map(s => [s[0], s[1]]), ['tous', 'Tous']].map(([k, label]) => (
+          <button key={k} onClick={() => setFilter(k)} style={{ ...btnGhost, height: 36, background: filter === k ? 'var(--accent)' : 'var(--surface)', color: filter === k ? 'var(--accent-fg)' : 'var(--fg)' }}>{label}</button>
+        ))}
+      </div>
+      {loading && <Loading />}
+      <div style={{ display: 'grid', gap: 12 }}>
+        {list.map(c => {
+          const [, label, hue] = statutInfo(c.statut);
+          return (
+            <article key={c.id} style={{ ...cardStyle, padding: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                <div style={{ minWidth: 0 }}>
+                  <button onClick={() => setOpenId(c.id)} style={{ all: 'unset', cursor: 'pointer', fontWeight: 800, fontSize: 16 }}>{fullName(c)}</button>
+                  <div style={{ fontSize: 12.5, color: 'var(--fg-muted)', marginTop: 3 }}>{[c.adresse, c.ville].filter(Boolean).join(', ') || c.titre}</div>
+                  <div style={{ fontSize: 12, color: 'var(--fg-faint)', marginTop: 2 }}>{c.date_debut ? `Début : ${fmtDay(c.date_debut)}` : 'Date non planifiée'} · {c.nb_photos} photo(s) · {dollars(c.valeur)}</div>
+                </div>
+                <Pill hue={hue}>{label}</Pill>
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+                <CallButton phone={c.telephone} label="Appeler" />
+                <button style={btnAccent} onClick={() => setOpenId(c.id)}>Ouvrir le chantier</button>
+              </div>
+            </article>
+          );
+        })}
+        {!loading && !list.length && <Empty>Aucun chantier ici. Ils sont créés automatiquement quand un contrat est signé.</Empty>}
+      </div>
+      {openId && <ChantierModal id={openId} onClose={() => { setOpenId(null); reload(); notifyBadges(); }} />}
+    </div>
+  );
+}
+
+function ChantierModal({ id, onClose }) {
+  const { showToast } = useUI();
+  const { data: ch, error, reload } = useLoad(() => api.chantiers.get(id), [id]);
+  const [form, setForm] = useState(null);
+  const [err, setErr] = useState('');
+  const [photoType, setPhotoType] = useState('avant');
+  const fileRef = useRef(null);
+  const run = async (fn, ok) => { setErr(''); try { const r = await fn(); if (ok) showToast(ok); await reload(); return r; } catch (e) { setErr(e.message); return null; } };
+  const f = form || (ch && { date_debut: ch.date_debut || '', date_fin: ch.date_fin || '', notes_inspection: ch.notes_inspection || '', materiaux: ch.materiaux || '' });
+  if (!ch) return <Modal title="Chantier" onClose={onClose}>{error ? <ErrorNote>{error}</ErrorNote> : <Loading />}</Modal>;
+  const set = (k, v) => setForm({ ...f, [k]: v });
+
+  const upload = async e => {
+    for (const file of e.target.files) {
+      const fd = new FormData();
+      fd.append('file', file); fd.append('type', photoType);
+      await run(() => api.chantiers.addPhoto(id, fd), 'Photo ajoutée');
+    }
+    e.target.value = '';
+  };
+
+  return (
+    <Modal title={fullName(ch)} onClose={onClose} width={680}>
+      <ErrorNote>{err}</ErrorNote>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <CallButton phone={ch.telephone} label="Appeler" />
+        <Link to={`/clients/${ch.client_id}`} style={{ ...btnGhost, height: 46, textDecoration: 'none' }}>Fiche client</Link>
+      </div>
+      <Field label="Étape (un clic pour changer)">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8 }}>
+          {CH_STATUTS.map(([k, label, hue]) => (
+            <button key={k} onClick={() => ch.statut !== k && run(() => api.chantiers.update(id, { statut: k }), label)} aria-pressed={ch.statut === k}
+              style={{ ...btnGhost, height: 46, background: ch.statut === k ? hue : 'var(--surface)', color: ch.statut === k ? '#fff' : 'var(--fg)', borderColor: ch.statut === k ? hue : undefined }}>{label}</button>
+          ))}
+        </div>
+      </Field>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <Field label="Début"><input type="date" style={inputStyle} value={f.date_debut} onChange={e => set('date_debut', e.target.value)} /></Field>
+        <Field label="Fin"><input type="date" style={inputStyle} value={f.date_fin} onChange={e => set('date_fin', e.target.value)} /></Field>
+      </div>
+      <Field label="Notes d’inspection"><textarea style={textareaStyle} rows={3} value={f.notes_inspection} onChange={e => set('notes_inspection', e.target.value)} placeholder="État du toit, accès, particularités…" /></Field>
+      <Field label="Matériaux utilisés"><textarea style={textareaStyle} rows={2} value={f.materiaux} onChange={e => set('materiaux', e.target.value)} placeholder="Produit, quantités…" /></Field>
+      <div><button style={btnAccent} disabled={!form} onClick={() => run(() => api.chantiers.update(id, form), 'Chantier enregistré').then(() => setForm(null))}>Enregistrer les notes</button></div>
+
+      <Field label="Photos">
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+          <select style={{ ...inputStyle, width: 'auto' }} value={photoType} onChange={e => setPhotoType(e.target.value)} aria-label="Type de photo">
+            <option value="avant">Avant</option><option value="apres">Après</option><option value="inspection">Inspection</option><option value="autre">Autre</option>
+          </select>
+          <button style={{ ...btnAccent, height: 46 }} onClick={() => fileRef.current?.click()}><Camera size={18} /> Prendre / ajouter une photo</button>
+          <input ref={fileRef} type="file" accept="image/*" capture="environment" multiple hidden onChange={upload} />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 10 }}>
+          {ch.photos.map(p => (
+            <figure key={p.id} style={{ margin: 0, position: 'relative' }}>
+              <a href={`/uploads/${p.chemin}`} target="_blank" rel="noreferrer"><img src={`/uploads/${p.chemin}`} alt={p.legende || p.type} loading="lazy" style={{ width: '100%', height: 110, objectFit: 'cover', borderRadius: 10, border: '1px solid var(--border)' }} /></a>
+              <figcaption style={{ fontSize: 11.5, color: 'var(--fg-muted)', display: 'flex', justifyContent: 'space-between' }}>
+                <span>{p.type}</span>
+                <button aria-label="Supprimer la photo" onClick={() => window.confirm('Supprimer cette photo?') && run(() => api.chantiers.deletePhoto(id, p.id))} style={{ border: 0, background: 'transparent', cursor: 'pointer', color: 'var(--fg-faint)' }}><Trash2 size={12} /></button>
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+      </Field>
+
+      {ch.opportunite_id && <Rentabilite oppId={ch.opportunite_id} />}
+      <div><button style={btnDanger} onClick={async () => { if (window.confirm('Supprimer ce chantier (les photos aussi)?')) { await api.chantiers.delete(id); onClose(); } }}><Trash2 size={15} /> Supprimer le chantier</button></div>
+    </Modal>
+  );
+}
+
+function Rentabilite({ oppId }) {
+  const { showToast } = useUI();
+  const { data, reload } = useLoad(() => api.rentabilite.get(oppId), [oppId]);
+  const [v, setV] = useState(null);
+  if (!data) return null;
+  const f = v || data;
+  const set = (k, val) => setV({ ...f, [k]: val });
+  const n = x => (x === '' || x == null ? 0 : Number(x));
+  // Aperçu instantané (le serveur recalcule à l'enregistrement)
+  const revenu = f.revenu !== '' && f.revenu != null ? n(f.revenu) : (f.superficie_pi2 && f.prix_pi2 ? n(f.superficie_pi2) * n(f.prix_pi2) : data.revenu);
+  const cout = n(f.cout_produits) + n(f.main_oeuvre) + n(f.deplacement) + n(f.autres);
+  const profit = revenu - cout, marge = revenu > 0 ? profit / revenu * 100 : null;
+  const num = (k, label, ph) => <Field label={label}><input type="number" min="0" step="any" inputMode="decimal" style={inputStyle} value={f[k] ?? ''} placeholder={ph} onChange={e => set(k, e.target.value)} /></Field>;
+  return (
+    <section style={{ ...cardStyle, padding: 14 }}>
+      <h3 style={{ margin: '0 0 10px', fontSize: 14, fontWeight: 800 }}>Rentabilité du projet</h3>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
+        {num('superficie_pi2', 'Superficie (pi²)', data.superficie_suggeree_pi2 ? `≈ ${data.superficie_suggeree_pi2}` : '')}
+        {num('prix_pi2', 'Prix vendu ($/pi²)')}
+        {num('revenu', 'Revenu (si autre)', 'auto')}
+        {num('cout_produits', 'Coût des produits ($)')}
+        {num('main_oeuvre', 'Main-d’œuvre ($)')}
+        {num('deplacement', 'Déplacement ($)')}
+        {num('autres', 'Autres dépenses ($)')}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, margin: '12px 0' }}>
+        <Stat label="Revenu" value={dollars2(revenu)} />
+        <Stat label="Coût total" value={dollars2(cout)} />
+        <Stat label="Profit brut" value={dollars2(profit)} hue={profit >= 0 ? '#5f9d5f' : '#c4584f'} />
+        <Stat label="Marge brute" value={marge == null ? '—' : `${marge.toFixed(1)} %`} hue={marge != null && marge < 20 ? '#c4584f' : '#5f9d5f'} />
+      </div>
+      <button style={btnAccent} disabled={!v} onClick={async () => { await api.rentabilite.save(oppId, v); showToast('Rentabilité enregistrée'); setV(null); reload(); }}>Enregistrer</button>
+    </section>
+  );
+}

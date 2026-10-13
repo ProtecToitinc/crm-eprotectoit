@@ -1,53 +1,159 @@
-import React, {useEffect,useState} from 'react';
-import {Copy,RefreshCw,ExternalLink} from 'lucide-react';
-/** Intégration : <Integrations api={api}/> avec api.integrations, api.drive, api.meta. */
-const style={box:{padding:18,background:'var(--surface,white)',border:'1px solid var(--border,#ddd)',borderRadius:14,marginBottom:18},button:{padding:'10px 12px',borderRadius:9,border:'1px solid var(--border,#ddd)',cursor:'pointer',background:'var(--surface,white)',color:'inherit'},input:{padding:10,border:'1px solid var(--border,#ddd)',borderRadius:9,background:'var(--surface,white)',color:'inherit',width:'100%',boxSizing:'border-box'}};
-export default function Integrations({api}) {
-  const [data,setData]=useState(null),[status,setStatus]=useState(null),[preview,setPreview]=useState(null),[secret,setSecret]=useState(null),[message,setMessage]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false);
-  const [form,setForm]=useState({metaPageId:'',metaPageToken:'',notifyEmails:'',driveRootId:'',driveLeadsId:''});
-  const load=async()=>{
-    try {
-      const [d,s]=await Promise.all([api.integrations.get(),api.drive.status()]);
-      setData(d);setStatus(s);
-      setForm(v=>({...v,metaPageId:d.meta?.pageId||'',notifyEmails:d.notifications?.emails||'',driveRootId:d.drive?.rootId||'',driveLeadsId:d.drive?.leadsId||'',metaPageToken:''}));
-      setError('');
-    }catch(e){setError(e.message||'Impossible de charger les intégrations');}
+import React, { useEffect, useState } from 'react';
+import { Copy, RefreshCw, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { api } from '../api';
+import { cardStyle, btnGhost, btnAccent, inputStyle, Field } from '../components/ui';
+import { useLoad, ErrorNote, Pill, Loading, dollars2, notifyBadges } from '../components/bits';
+import { useUI } from '../context/UIContext';
+
+const Section = ({ title, children }) => <section style={{ ...cardStyle, padding: 18, marginBottom: 18 }}><h2 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 800 }}>{title}</h2>{children}</section>;
+const row = { display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' };
+const when = s => (s ? new Date(s).toLocaleString('fr-CA', { dateStyle: 'medium', timeStyle: 'short' }) : 'jamais');
+
+export default function Integrations() {
+  const { showToast } = useUI();
+  const cfg = useLoad(() => api.integrations.get());
+  const drive = useLoad(() => api.drive.status());
+  const health = useLoad(() => api.health());
+  const google = useLoad(() => api.google.status());
+  const [form, setForm] = useState({});
+  const [preview, setPreview] = useState(null);
+  const [secret, setSecret] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [pick, setPick] = useState({}); // drive_id -> client_id choisi
+
+  useEffect(() => {
+    const d = cfg.data;
+    if (d) setForm(f => ({ metaPageId: d.meta.pageId || '', metaPageToken: '', metaAdAccountId: d.ads?.accountId || '', metaAdsToken: '', notifyEmails: d.notifications.emails || '', driveRootId: d.drive.rootId || '', driveLeadsId: d.drive.leadsId || '', ...f, ...{ metaPageId: d.meta.pageId || '', notifyEmails: d.notifications.emails || '' } }));
+  }, [cfg.data]);
+  const refreshAll = () => { cfg.reload(); drive.reload(); health.reload(); google.reload(); notifyBadges(); };
+  const run = async (fn, ok) => {
+    setBusy(true); setErr('');
+    try { const r = await fn(); if (r?.ok === false) throw new Error(r.message || 'Opération refusée'); if (ok) showToast(ok); refreshAll(); return r; }
+    catch (e) { setErr(e.message || 'Erreur'); return null; } finally { setBusy(false); }
   };
-  useEffect(()=>{if(api?.integrations&&api?.drive)load();else setError('Brancher api.integrations et api.drive dans App.jsx');},[api]);
-  const run=async(fn,success)=>{setBusy(true);setError('');setMessage('');try{const r=await fn();if(r?.ok===false)throw new Error(r.message||'Opération refusée');if(success)setMessage(success);await load();return r;}catch(e){setError(e.message||'Erreur');return null;}finally{setBusy(false);}};
-  const save=()=>run(()=>api.integrations.save(form),'Configuration enregistrée');
-  const sync=dry=>run(async()=>{const r=await api.drive.sync({dry,full:dry});setPreview(r);return r;},dry?'Aperçu prêt — aucune donnée CRM modifiée':'Synchronisation terminée');
-  const copy=async value=>{await navigator.clipboard.writeText(value);setMessage('Copié dans le presse-papiers');};
-  return <main style={{padding:24,color:'var(--fg,#ddd)'}}>
-    <h1 style={{fontSize:28,marginTop:0}}>Intégrations</h1><p>Drive, formulaires Meta Ads et notifications de nouveaux leads.</p>
-    {error&&<p role="alert" style={{color:'#c2410c'}}>{error}</p>}{message&&<p role="status" style={{color:'var(--accent,#2563eb)'}}>{message}</p>}
-    <section style={style.box}><h2>Google — Agenda, Drive et Gmail</h2>
-      <p>Autorise les 3 services dans la connexion Google de ton CRM. Drive et Gmail nécessitent leurs API activées dans Google Cloud.</p>
-      <p>Depuis la page <a href="/calendrier">Calendrier</a>, rouvre l'autorisation Google en incluant Drive et Gmail.</p>
-      <p>Dernier passage Drive : <strong>{status?.lastSync ? new Date(status.lastSync).toLocaleString('fr-CA') : 'Jamais'}</strong>.</p>
-      <div style={{display:'flex',gap:8,flexWrap:'wrap'}}><button style={style.button} disabled={busy} onClick={()=>sync(true)}>Aperçu sans modification</button><button style={style.button} disabled={busy||!preview?.ok||preview?.dry!==true} onClick={()=>{if(window.confirm('Appliquer la synchronisation Drive? Vérifie les rapprochements avant de continuer.'))sync(false);}}>Synchroniser maintenant</button><button style={style.button} onClick={load}><RefreshCw size={16}/> Actualiser</button></div>
-      {preview&&<div style={{marginTop:14}}><strong>{preview.created||0} à créer · {preview.matched||0} rapprochés · {preview.review||0} à valider · {preview.errors||0} erreurs</strong><details><summary>Afficher les éléments analysés ({preview.details?.length||0})</summary><div style={{maxHeight:340,overflow:'auto'}}>{preview.details?.map((x,i)=><p key={i} style={{borderBottom:'1px solid var(--border,#ddd)',paddingBottom:8}}><strong>{x.action} : {x.name}</strong><span> {x.reason||''}</span>{x.preview&&<small style={{display:'block'}}>Client : {[x.preview.prenom,x.preview.nom].join(' ')} — Total : {x.preview.total||'–'} $ — Signature : {x.preview.signe?'Oui':'Non'}</small>}</p>)}</div></details></div>}
-      {!!status?.review?.length&&<details style={{marginTop:14}}><summary>Éléments à valider ({status.review.length})</summary>{status.review.map(x=><p key={x.drive_id}>{x.name} — {x.message} {x.client_id&&`(client #${x.client_id})`}</p>)}</details>}
-    </section>
-    <section style={style.box}><h2>Meta Ads — leads</h2><p>Renseigne l'ID de Page et son jeton Meta dans ce formulaire. Le jeton ne sera plus affiché après enregistrement.</p>
-      <label>ID de Page<input style={style.input} value={form.metaPageId} onChange={e=>setForm(v=>({...v,metaPageId:e.target.value}))}/></label>
-      <label>Jeton de Page {data?.meta?.hasToken?'(déjà enregistré)':''}<input type="password" autoComplete="off" placeholder="Laisser vide pour conserver le jeton existant" style={style.input} value={form.metaPageToken} onChange={e=>setForm(v=>({...v,metaPageToken:e.target.value}))}/></label>
-      <p>Dernière vérification réussie : {data?.meta?.lastOk||'Aucune'}. {data?.meta?.lastError&&<span style={{color:'#c2410c'}}>Erreur : {data.meta.lastError}</span>}</p>
-      <div style={{display:'flex',gap:8,flexWrap:'wrap'}}><button style={style.button} onClick={save} disabled={busy}>Enregistrer</button><button style={style.button} onClick={()=>run(()=>api.meta.poll(),'Leads Meta vérifiés')} disabled={busy}>Vérifier Meta</button><button style={style.button} onClick={()=>{if(window.confirm('Importer les leads passés sans envoyer de courriels?'))run(()=>api.meta.importHistory(),'Historique importé silencieusement');}} disabled={busy}>Importer l'historique</button><button style={style.button} onClick={()=>run(()=>api.meta.disconnect(),'Meta déconnecté')} disabled={busy}>Déconnecter</button></div>
-    </section>
-    <section style={style.box}><h2>Courriels de notification</h2>
-      <label>Destinataires (séparés par des virgules)<input style={style.input} value={form.notifyEmails} onChange={e=>setForm(v=>({...v,notifyEmails:e.target.value}))}/></label>
-      <div style={{display:'flex',gap:8,marginTop:12,flexWrap:'wrap'}}><button style={style.button} onClick={save} disabled={busy}>Enregistrer</button><button style={style.button} onClick={()=>{if(window.confirm('Envoyer un courriel de test maintenant?'))run(()=>api.integrations.testEmail({to:form.notifyEmails.split(/[;,\s]+/)[0]}),'Courriel de test envoyé');}} disabled={busy}>Envoyer un courriel test</button></div>
-    </section>
-    <section style={style.box}><h2>Webhook (Make / Zapier)</h2><p>Utilise une URL privée pour ajouter des leads à partir de Facebook Lead Ads. Ne partage pas la clé publiquement.</p>
-      <div style={{display:'flex',gap:8,flexWrap:'wrap'}}><button style={style.button} onClick={async()=>{const r=await api.integrations.webhook();setSecret(r);}}>Afficher l'URL privée</button><button style={style.button} onClick={()=>{if(window.confirm('Régénérer la clé invalidera les anciennes connexions Make/Zapier. Continuer?'))run(async()=>{const r=await api.integrations.renewWebhook();setSecret(r);return r;},'Nouvelle clé générée');}}>Régénérer</button></div>
-      {secret?.url&&<div style={{display:'flex',gap:8,marginTop:10,flexWrap:'wrap'}}><input readOnly style={{...style.input,flex:'1 1 300px'}} type="password" value={secret.url}/><button style={style.button} onClick={()=>copy(secret.url)}><Copy size={15}/> Copier</button></div>}
-    </section>
-    <section style={style.box}><h2>Dossiers Drive</h2>
-      <label>ID du dossier Soumissions<input style={style.input} value={form.driveRootId} onChange={e=>setForm(v=>({...v,driveRootId:e.target.value}))}/></label>
-      <label>ID du dossier Leads<input style={style.input} value={form.driveLeadsId} onChange={e=>setForm(v=>({...v,driveLeadsId:e.target.value}))}/></label>
-      <button style={{...style.button,marginTop:12}} onClick={save} disabled={busy}>Enregistrer</button>
-    </section>
-    <p style={{color:'var(--fg-muted,#64748b)',fontSize:13}}>La connexion à Meta nécessite les permissions Facebook Lead Ads et l'accès aux prospects sur la Page.</p>
-  </main>;
+  const save = () => run(() => api.integrations.save(form).then(() => setForm(f => ({ ...f, metaPageToken: '', metaAdsToken: '' }))), 'Configuration enregistrée');
+  const connectGoogle = async () => {
+    const { url } = await api.google.authUrl();
+    const popup = window.open(url, 'google-auth', 'width=520,height=700');
+    const t = setInterval(() => { if (!popup || popup.closed) { clearInterval(t); refreshAll(); } }, 800);
+  };
+  const sync = dry => run(async () => { const r = await api.drive.sync({ dry, full: dry }); if (dry) setPreview(r); else setPreview(null); return r; }, dry ? 'Aperçu prêt — rien n’a été modifié' : 'Synchronisation terminée');
+  const resolve = (id, action, client_id) => run(() => api.drive.resolve(id, { action, client_id }), 'Choix appliqué');
+  const copy = async v => { await navigator.clipboard.writeText(v); showToast('Copié'); };
+
+  const g = google.data, st = drive.data, h = health.data;
+  const clientName = c => [c.prenom, c.nom].filter(Boolean).join(' ') + (c.ville ? ` (${c.ville})` : '');
+
+  return (
+    <div style={{ maxWidth: 980 }}>
+      <ErrorNote>{err || cfg.error || drive.error}</ErrorNote>
+
+      {h && (
+        <Section title="État des connexions">
+          {h.problems.length === 0
+            ? <div style={{ ...row, color: '#5f9d5f', fontWeight: 700 }}><CheckCircle2 size={18} /> Tout fonctionne : Google, Meta, courriels et sauvegardes.</div>
+            : h.problems.map(p => (
+              <div key={p.id} style={{ ...row, color: p.level === 'erreur' ? '#c4584f' : '#c8924a', padding: '4px 0', fontWeight: 600 }}><AlertTriangle size={16} /> {p.message}</div>))}
+        </Section>
+      )}
+
+      <Section title="Google — Agenda, Drive et Gmail">
+        {!g?.configured && <p style={{ color: '#c4584f' }}>Google n’est pas configuré sur le serveur (variables GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET).</p>}
+        <div style={{ ...row, marginBottom: 10 }}>
+          <Pill hue={g?.connected ? '#5f9d5f' : '#c4584f'}>{g?.connected ? 'Connecté' : 'Non connecté'}</Pill>
+          <Pill hue={g?.calendar ? '#5f9d5f' : '#8a8580'}>Agenda {g?.calendar ? 'OK' : '—'}</Pill>
+          <Pill hue={g?.drive ? '#5f9d5f' : '#c8924a'}>Drive {g?.drive ? 'OK' : 'à autoriser'}</Pill>
+          <Pill hue={g?.gmail ? '#5f9d5f' : '#c8924a'}>Gmail {g?.gmail ? 'OK' : 'à autoriser'}</Pill>
+        </div>
+        <p style={{ fontSize: 13, color: 'var(--fg-muted)' }}>Drive et Gmail doivent aussi être activés dans Google Cloud (API Google Drive et API Gmail). Clique sur le bouton, puis accepte les trois autorisations.</p>
+        <button style={btnAccent} onClick={connectGoogle} disabled={!g?.configured}>{g?.connected ? 'Réautoriser Google (ajouter Drive et Gmail)' : 'Connecter Google'}</button>
+      </Section>
+
+      <Section title="Google Drive → CRM">
+        <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 0 }}>Dernière synchronisation : <b>{when(st?.lastSync)}</b>. Synchronisation automatique (toutes les 5 min) : <b>{st?.autoEnabled ? 'activée' : 'désactivée'}</b>. {st?.lastError && <span style={{ color: '#c4584f' }}>{st.lastError}</span>}</p>
+        <div style={row}>
+          <button style={btnGhost} disabled={busy} onClick={() => sync(true)}>1. Aperçu (rien n’est modifié)</button>
+          <button style={btnGhost} disabled={busy || !preview?.ok || !preview?.dry} onClick={() => { if (window.confirm(`Appliquer : ${preview.created} création(s), ${preview.matched} rapprochement(s), ${preview.review} à valider. Une sauvegarde est conseillée avant (Sécurité et sauvegardes). Continuer?`)) sync(false); }}>2. Appliquer</button>
+          <button style={btnGhost} disabled={busy || (!st?.autoEnabled && (st?.review?.length > 0 || !st?.lastSync))} onClick={() => run(() => api.drive.setAuto(!st?.autoEnabled), st?.autoEnabled ? 'Synchronisation automatique désactivée' : 'Synchronisation automatique activée')}>{st?.autoEnabled ? 'Désactiver l’auto' : '3. Activer l’auto'}</button>
+          <button style={btnGhost} onClick={refreshAll}><RefreshCw size={15} /> Actualiser</button>
+        </div>
+        {preview && (
+          <div style={{ marginTop: 14 }}>
+            <strong>{preview.created} à créer · {preview.matched} rapprochés · {preview.review} à valider · {preview.ignored || 0} ignorés · {preview.errors} erreurs</strong>
+            <details style={{ marginTop: 8 }}><summary style={{ cursor: 'pointer' }}>Voir le détail ({preview.details?.length || 0})</summary>
+              <div style={{ maxHeight: 360, overflow: 'auto', marginTop: 8 }}>
+                {preview.details?.filter(x => x.action !== 'rapproché' || x.plan?.length).map((x, i) => (
+                  <div key={i} style={{ padding: '7px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                    <b>{x.action}</b> — {x.name}{x.folder ? ` (${x.folder})` : ''} <span style={{ color: 'var(--fg-muted)' }}>{x.reason}</span>
+                    {x.plan?.length > 0 && <div style={{ color: 'var(--fg-muted)', fontSize: 12 }}>{x.plan.join(' · ')}</div>}
+                    {x.preview && <div style={{ color: 'var(--fg-faint)', fontSize: 12 }}>{[x.preview.prenom, x.preview.nom].filter(Boolean).join(' ')} · soumission #{x.preview.numero || '?'} · total {dollars2(x.preview.total)} · signé : {x.preview.signe ? 'oui' : 'non'}</div>}
+                  </div>))}
+              </div>
+            </details>
+          </div>
+        )}
+        {st?.review?.length > 0 && (
+          <div style={{ marginTop: 16 }}>
+            <h3 style={{ fontSize: 14, margin: '0 0 8px' }}>À valider ({st.review.length})</h3>
+            {st.review.map(x => (
+              <div key={x.drive_id} style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 12, marginBottom: 8 }}>
+                <b>{x.name}</b> {x.web_link && <a href={x.web_link} target="_blank" rel="noreferrer" style={{ fontSize: 12 }}>ouvrir dans Drive</a>}
+                <div style={{ fontSize: 12.5, color: x.status === 'erreur' ? '#c4584f' : 'var(--fg-muted)', margin: '3px 0 8px' }}>{x.message}{x.preview ? ` — contrat : ${[x.preview.prenom, x.preview.nom].filter(Boolean).join(' ')} · ${x.preview.telephone || 'sans téléphone'}` : ''}</div>
+                <div style={row}>
+                  <select style={{ ...inputStyle, width: 'auto', maxWidth: 260, height: 38 }} value={pick[x.drive_id] || ''} onChange={e => setPick(p => ({ ...p, [x.drive_id]: e.target.value }))} aria-label="Client à lier">
+                    <option value="">Lier à un client…</option>
+                    {st.clients.map(c => <option key={c.id} value={c.id}>{clientName(c)}</option>)}
+                  </select>
+                  <button style={btnGhost} disabled={busy || !pick[x.drive_id]} onClick={() => resolve(x.drive_id, 'lier', pick[x.drive_id])}>Lier</button>
+                  {/nouvelle version/i.test(x.message || '') && <button style={btnGhost} disabled={busy} onClick={() => resolve(x.drive_id, 'ajouter')}>Ajouter comme nouvelle soumission</button>}
+                  {!/nouvelle version/i.test(x.message || '') && <button style={btnGhost} disabled={busy} onClick={() => window.confirm('Créer un nouveau client pour cet élément?') && resolve(x.drive_id, 'creer')}>Créer un nouveau client</button>}
+                  <button style={btnGhost} disabled={busy} onClick={() => resolve(x.drive_id, 'ignorer')}>Ignorer</button>
+                </div>
+              </div>))}
+          </div>
+        )}
+      </Section>
+
+      <Section title="Meta Ads — leads">
+        <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 0 }}>Les jetons sont chiffrés et ne sont jamais réaffichés. Sans jeton, tu peux brancher Make ou Zapier avec le webhook plus bas.</p>
+        <Field label="ID de la Page Facebook"><input style={inputStyle} value={form.metaPageId || ''} onChange={e => setForm(f => ({ ...f, metaPageId: e.target.value }))} inputMode="numeric" /></Field>
+        <Field label={`Jeton d’accès de la Page ${cfg.data?.meta.hasToken ? '(déjà enregistré)' : ''}`} style={{ marginTop: 10 }}><input type="password" autoComplete="off" style={inputStyle} placeholder="Laisser vide pour conserver" value={form.metaPageToken || ''} onChange={e => setForm(f => ({ ...f, metaPageToken: e.target.value }))} /></Field>
+        <Field label="ID du compte publicitaire (pour les coûts)" style={{ marginTop: 10 }}><input style={inputStyle} value={form.metaAdAccountId || ''} onChange={e => setForm(f => ({ ...f, metaAdAccountId: e.target.value }))} placeholder="Ex. 1234567890" /></Field>
+        <Field label={`Jeton publicitaire (ads_read, optionnel) ${cfg.data?.ads?.hasToken ? '(déjà enregistré)' : ''}`} style={{ marginTop: 10 }}><input type="password" autoComplete="off" style={inputStyle} value={form.metaAdsToken || ''} onChange={e => setForm(f => ({ ...f, metaAdsToken: e.target.value }))} /></Field>
+        <p style={{ fontSize: 13 }}>Dernière vérification réussie : <b>{when(cfg.data?.meta.lastOk)}</b>. {cfg.data?.meta.lastError && <span style={{ color: '#c4584f' }}>{cfg.data.meta.lastError}</span>}</p>
+        <div style={row}>
+          <button style={btnAccent} onClick={save} disabled={busy}>Enregistrer</button>
+          <button style={btnGhost} onClick={() => run(() => api.metaAds.poll(), 'Meta vérifié')} disabled={busy}>Vérifier maintenant</button>
+          <button style={btnGhost} onClick={() => window.confirm('Importer les anciens leads sans envoyer de courriels?') && run(() => api.metaAds.importHistory(), 'Historique importé sans notification')} disabled={busy}>Importer l’historique</button>
+          <button style={btnGhost} onClick={() => window.confirm('Déconnecter Meta?') && run(() => api.metaAds.disconnect(), 'Meta déconnecté')} disabled={busy}>Déconnecter</button>
+        </div>
+      </Section>
+
+      <Section title="Courriels de notification">
+        <Field label="Destinataires (séparés par des virgules)"><input style={inputStyle} value={form.notifyEmails || ''} onChange={e => setForm(f => ({ ...f, notifyEmails: e.target.value }))} /></Field>
+        <p style={{ fontSize: 13 }}>Dernier envoi réussi : <b>{when(h?.notifications.lastOk)}</b>. {h?.notifications.waiting > 0 && <span style={{ color: '#c8924a' }}>{h.notifications.waiting} lead(s) en attente d’envoi.</span>}</p>
+        <div style={row}>
+          <button style={btnAccent} onClick={save} disabled={busy}>Enregistrer</button>
+          <button style={btnGhost} onClick={() => window.confirm('Envoyer un courriel de test maintenant?') && run(() => api.integrations.testEmail({ to: (form.notifyEmails || '').split(/[;,\s]+/)[0] }), 'Courriel de test envoyé')} disabled={busy}>Envoyer un courriel test</button>
+        </div>
+      </Section>
+
+      <Section title="Webhook (Make / Zapier)">
+        <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 0 }}>URL privée pour ajouter des leads. Ne la partage pas : elle contient la clé secrète.</p>
+        <div style={row}>
+          <button style={btnGhost} onClick={async () => setSecret(await api.integrations.webhook())}>Afficher l’URL privée</button>
+          <button style={btnGhost} onClick={() => window.confirm('Régénérer la clé coupe les anciennes connexions Make/Zapier. Continuer?') && run(async () => { setSecret(await api.integrations.renewWebhook()); return {}; }, 'Nouvelle clé générée')}>Régénérer la clé</button>
+        </div>
+        {secret?.url && <div style={{ ...row, marginTop: 10 }}><input readOnly type="password" style={{ ...inputStyle, flex: '1 1 300px', width: 'auto' }} value={secret.url} /><button style={btnGhost} onClick={() => copy(secret.url)}><Copy size={15} /> Copier</button></div>}
+      </Section>
+
+      <Section title="Dossiers Drive">
+        <Field label="ID du dossier Soumissions"><input style={inputStyle} value={form.driveRootId || ''} onChange={e => setForm(f => ({ ...f, driveRootId: e.target.value }))} /></Field>
+        <Field label="ID du dossier Leads" style={{ marginTop: 10 }}><input style={inputStyle} value={form.driveLeadsId || ''} onChange={e => setForm(f => ({ ...f, driveLeadsId: e.target.value }))} /></Field>
+        <button style={{ ...btnAccent, marginTop: 12 }} onClick={save} disabled={busy}>Enregistrer</button>
+      </Section>
+      {(cfg.loading || drive.loading) && <Loading />}
+    </div>
+  );
 }
