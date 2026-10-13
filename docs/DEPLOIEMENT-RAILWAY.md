@@ -17,6 +17,7 @@ Ce document est une procédure de vérification, **pas** une preuve de déploiem
 - [ ] Vérifier la présence des variables `CRM_PASSWORD`, `DB_PATH`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` si pertinentes.
 - [ ] Ajouter les nouvelles variables éventuellement requises par la version sécurisée (vérifier dans le code de Claude), sans divulguer leur valeur.
 - [ ] Faire une **sauvegarde restaurable** de SQLite ET des fichiers du volume; conserver une copie externe protégée.
+- [ ] **Point critique :** `server/backup.js` place ses sauvegardes par défaut dans `backups/` sur le **même volume** que SQLite; cela ne protège pas de la perte du volume. Vérifier une copie hors volume et une restauration d'essai (voir [issue #6](https://github.com/ProtecToitinc/crm-eprotectoit/issues/6)).
 - [ ] Préparer une procédure de retour arrière du code et des données si une migration nécessite un rollback.
 - [ ] Planifier la reconnexion des utilisateurs : la nouvelle authentification peut invalider les anciennes sessions.
 
