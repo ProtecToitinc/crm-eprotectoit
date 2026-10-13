@@ -792,6 +792,34 @@ db.init().then(async () => {
   app.listen(PORT, () => {
     console.log(`CRM eProtectoIT démarré sur http://localhost:${PORT}`);
     if (process.env.DISABLE_JOBS !== '1') {
+      // One-shot administrative Drive sync, opt-in through Railway. No OAuth token or client details logged.
+      if (process.env.CRM_DRIVE_ONESHOT === 'preview' || process.env.CRM_DRIVE_ONESHOT === 'import') {
+        setTimeout(async () => {
+          const mode = process.env.CRM_DRIVE_ONESHOT;
+          try {
+            const { getSetting, setSetting } = require('./lib');
+            const drive = require('./drive');
+            const previous = await getSetting('crm_drive_oneshot_completed');
+            if (previous === mode + ':' + process.env.CRM_DRIVE_ONESHOT_ID) {
+              console.info('[drive-oneshot] already completed');
+              return;
+            }
+            const health = await require('./google').status();
+            if (!health.connected || !health.drive) { console.warn('[drive-oneshot] Google Drive authorization missing'); return; }
+            if (mode === 'import' && !(await getSetting('backup_remote_last_ok'))) {
+              console.error('[drive-oneshot] import blocked: no confirmed off-volume backup');
+              return;
+            }
+            const opts = { dry: mode === 'preview', full: true };
+            const result = await drive.sync(opts);
+            const report = { ok: result.ok, dry: result.dry, created: result.created, matched: result.matched, unchanged: result.unchanged, review: result.review, errors: result.errors, message: result.message || '' };
+            console.info('[drive-oneshot] ' + JSON.stringify(report));
+            if (result.ok) await setSetting('crm_drive_oneshot_completed', mode + ':' + process.env.CRM_DRIVE_ONESHOT_ID);
+          } catch (error) {
+            console.error('[drive-oneshot] failed:', String(error?.message || error).slice(0,150));
+          }
+        }, 30000).unref?.();
+      }
       integrations.startJobs();
       backup.startJob();
       sales.startJobs();
