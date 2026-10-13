@@ -69,6 +69,7 @@ async function create(kind = 'auto') {
         await setSetting('backup_remote_last_ok', meta.at);
         await setSetting('backup_remote_last_error', '');
         meta.remote = remote;
+        console.info('[backup-remote] copie externe confirmée');
       } catch (err) {
         await setSetting('backup_remote_last_error', errText(err));
         meta.remote = { ok: false, message: 'Copie distante échouée; sauvegarde locale conservée' };
@@ -168,7 +169,22 @@ function startJob() {
       const ageH = last ? (Date.now() - Date.parse(last.at)) / 3600000 : Infinity;
       const { date, time } = localParts();
       const doneToday = last && last.name.includes(`auto-${date}_`);
-      if (ageH > 26 || (time >= '03:00' && !doneToday)) await create('auto');
+      if (ageH > 26 || (time >= '03:00' && !doneToday)) {
+        await create('auto');
+      } else if (remoteBackup.configured() && last) {
+        const lastRemote = await getSetting('backup_remote_last_ok');
+        if (!lastRemote || Date.parse(lastRemote) < Date.parse(last.at)) {
+          try {
+            await remoteBackup.mirror(path.join(backupsDir, last.name), last.name);
+            await setSetting('backup_remote_last_ok', last.at);
+            await setSetting('backup_remote_last_error', '');
+            console.info('[backup-remote] copie externe confirmée');
+          } catch (err) {
+            await setSetting('backup_remote_last_error', errText(err));
+            console.error('[backup-remote] échec de rattrapage :', errText(err));
+          }
+        }
+      }
     } catch (e) { console.error('[sauvegarde] échec :', errText(e)); }
   };
   setTimeout(tick, 2 * 60 * 1000).unref?.();
