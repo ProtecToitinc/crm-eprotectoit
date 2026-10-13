@@ -44,6 +44,8 @@ test('en-têtes de sécurité et pas de CORS ouvert', async () => {
   assert.match(r.headers.get('content-security-policy'), /frame-ancestors 'none'/);
   assert.equal(r.headers.get('access-control-allow-origin'), null);
   assert.equal(r.headers.get('x-powered-by'), null);
+  // Les tuiles de la carte (OpenStreetMap) exigent l'origine du site : pas de « same-origin » strict
+  assert.equal(r.headers.get('referrer-policy'), 'strict-origin-when-cross-origin');
 });
 
 test('callback Google : état OAuth invalide refusé', async () => {
