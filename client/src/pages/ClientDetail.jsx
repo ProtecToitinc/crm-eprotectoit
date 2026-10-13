@@ -534,7 +534,7 @@ export default function ClientDetail() {
               <div key={doc.id} style={{ ...cardStyle, padding: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
                 <FileText size={20} style={{ color: 'var(--accent)', flexShrink: 0 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <a href={`/uploads/${doc.chemin}`} target="_blank" rel="noreferrer" style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--accent)', textDecoration: 'none', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.nom}</a>
+                  <a href={/^https:\/\//i.test(doc.chemin) ? doc.chemin : `/uploads/${doc.chemin}`} target="_blank" rel="noreferrer" style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--accent)', textDecoration: 'none', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.nom}</a>
                   <div style={{ fontSize: 11.5, color: 'var(--fg-faint)' }}>{fmtDbDay(doc.created_at)}{doc.taille ? ` · ${Math.round(doc.taille / 1024)} Ko` : ''}</div>
                 </div>
                 <button aria-label="Supprimer le document" onClick={() => { if (confirm(`Supprimer « ${doc.nom} » ?`)) act(() => api.documents.delete(doc.id)); }} style={{ border: 'none', background: 'transparent', color: 'var(--fg-faint)', cursor: 'pointer', padding: 4 }}><Trash2 size={14} /></button>

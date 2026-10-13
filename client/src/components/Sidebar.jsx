@@ -1,10 +1,11 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutGrid, BarChart3, Calendar, MapPin, Users, FileText, Receipt, Phone, StickyNote } from 'lucide-react';
+import { LayoutGrid, BarChart3, Calendar, MapPin, Users, FileText, Receipt, Phone, StickyNote, Target, PlugZap } from 'lucide-react';
 
 const PRINCIPAL = [
   { to: '/', icon: LayoutGrid, label: 'Tableau de bord', end: true },
   { to: '/pipeline', icon: BarChart3, label: 'Pipeline' },
+  { to: '/opportunites', icon: Target, label: 'Opportunités' },
   { to: '/calendrier', icon: Calendar, label: 'Calendrier' },
   { to: '/carte', icon: MapPin, label: 'Carte des projets' }
 ];
@@ -14,7 +15,8 @@ const GESTION = [
   { to: '/appels', icon: Phone, label: 'Appels' },
   { to: '/notes', icon: StickyNote, label: 'Notes' },
   { to: '/soumissions', icon: FileText, label: 'Soumissions' },
-  { to: '/facturation', icon: Receipt, label: 'Facturation' }
+  { to: '/facturation', icon: Receipt, label: 'Facturation' },
+  { to: '/integrations', icon: PlugZap, label: 'Intégrations' }
 ];
 
 function NavGroup({ title, items, onItemClick }) {

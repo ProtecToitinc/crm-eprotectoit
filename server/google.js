@@ -4,7 +4,11 @@ const db = require('./database');
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3001/api/google/callback';
-const SCOPES = ['https://www.googleapis.com/auth/calendar'];
+const SCOPE_CALENDAR = 'https://www.googleapis.com/auth/calendar';
+const SCOPE_DRIVE = 'https://www.googleapis.com/auth/drive.readonly';
+const SCOPE_GMAIL = 'https://www.googleapis.com/auth/gmail.send';
+const SCOPES = [SCOPE_CALENDAR, SCOPE_DRIVE, SCOPE_GMAIL];
+let lastAuthError = null;
 const CRM_CALENDAR_NAME = 'CRM ProtecToit';
 
 function configured() {
@@ -40,13 +44,15 @@ async function getAuthedClient() {
 function getAuthUrl() {
   if (!configured()) throw new Error('Google Calendar non configuré (variables GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET manquantes)');
   const client = oauthClient();
-  return client.generateAuthUrl({ access_type: 'offline', prompt: 'consent', scope: SCOPES });
+  return client.generateAuthUrl({ access_type: 'offline', prompt: 'consent', scope: SCOPES, include_granted_scopes: true });
 }
 
 async function handleCallback(code) {
   const client = oauthClient();
   const { tokens } = await client.getToken(code);
-  await saveTokens(tokens);
+  const previous = await getStoredTokens();
+  await saveTokens({ ...previous, ...tokens, refresh_token: tokens.refresh_token || previous?.refresh_token });
+  lastAuthError = null;
 }
 
 async function disconnect() {
@@ -58,7 +64,9 @@ async function disconnect() {
 async function status() {
   const tokens = await getStoredTokens();
   const calendarId = tokens ? await getActiveCalendarId() : null;
-  return { configured: configured(), connected: !!tokens, calendarSelected: !!calendarId };
+  const granted = (tokens?.scope || '').split(/\s+/);
+  const has = scope => granted.includes(scope);
+  return { configured: configured(), connected: !!tokens, calendarSelected: !!calendarId, calendar: has(SCOPE_CALENDAR), drive: has(SCOPE_DRIVE), gmail: has(SCOPE_GMAIL), authError: lastAuthError };
 }
 
 function calendarApi(client) {
@@ -179,7 +187,22 @@ async function syncAll() {
   return { ok: true, imported };
 }
 
+function driveApi(client) { return google.drive({ version: 'v3', auth: client }); }
+function hasScope(tokens, scope) { return String(tokens?.scope || '').split(/\s+/).includes(scope); }
+function noteAuthError(error) { lastAuthError = String(error?.message || error).replace(/(access_token|refresh_token|client_secret)=[^&\s]+/gi,'$1=[masqué]').slice(0,180); }
+function clearAuthError() { lastAuthError = null; }
+async function sendMail({to,subject,text,html}) {
+  const client = await getAuthedClient();
+  if (!client) throw new Error('Google non connecté');
+  const fromTokens = await getStoredTokens();
+  if (!hasScope(fromTokens,SCOPE_GMAIL)) throw new Error('Autorisation Gmail à accorder');
+  const safe = value => String(value || '').replace(/[\r\n]+/g,' ');
+  const boundary = 'crm-protectoit-'+require('crypto').randomBytes(12).toString('hex');
+  const payload = ['To: '+safe(to),'Subject: =?UTF-8?B?'+Buffer.from(safe(subject),'utf8').toString('base64')+'?=','MIME-Version: 1.0','Content-Type: multipart/alternative; boundary="'+boundary+'"','','--'+boundary,'Content-Type: text/plain; charset=UTF-8','Content-Transfer-Encoding: base64','',Buffer.from(String(text || ''),'utf8').toString('base64'),'--'+boundary,'Content-Type: text/html; charset=UTF-8','Content-Transfer-Encoding: base64','',Buffer.from(String(html || '<pre>'+String(text||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</pre>'),'utf8').toString('base64'),'--'+boundary+'--'].join('\r\n');
+  const raw=Buffer.from(payload).toString('base64url');
+  return google.gmail({version:'v1',auth:client}).users.messages.send({userId:'me',requestBody:{raw}});
+}
 module.exports = {
-  configured, getAuthUrl, handleCallback, disconnect, status, syncEventOut, deleteEventOut, syncAll,
+  configured, getAuthUrl, handleCallback, disconnect, status, syncEventOut, deleteEventOut, syncAll, getAuthedClient, driveApi, hasScope, noteAuthError, clearAuthError, sendMail, SCOPE_CALENDAR, SCOPE_DRIVE, SCOPE_GMAIL,
   listCalendars, setCalendarId, getActiveCalendarId, createDedicatedCalendar
 };

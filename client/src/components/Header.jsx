@@ -15,7 +15,9 @@ const ROUTE_SCREEN = {
   '/carte': 'map',
   '/facturation': 'billing',
   '/notes': 'notes',
-  '/appels': 'calls'
+  '/appels': 'calls',
+  '/opportunites': 'leads',
+  '/integrations': 'integrations'
 };
 
 export default function Header({ mobileOpen, onToggleMobile }) {

@@ -1,0 +1,46 @@
+name: CRM integrations smoke tests
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: ['feature/drive-meta-leads-2026-10-13']
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install and build React
+        working-directory: client
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+      - name: Install server dependencies
+        working-directory: server
+        run: npm install --no-audit --no-fund
+      - name: Validate server source and six isolated tests
+        run: |
+          node --check server/server.js
+          node --check server/google.js
+          node --check server/drive.js
+          node --check server/leads.js
+          node --test tests/patch.test.js
+      - name: Smoke-test API on isolated temporary database
+        env:
+          PORT: '3055'
+          DISABLE_JOBS: '1'
+          CRM_PASSWORD: 'ci-test-not-a-real-password'
+        run: |
+          export DB_PATH="$(mktemp -d)/crm-ci.db"
+          (cd server && node server.js) > /tmp/crm.log 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            if curl --silent --fail http://localhost:3055/ > /dev/null; then break; fi
+            sleep 1
+          done
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3055/api/leads/count)" = "401"
+          grep -q 'CRM eProtectoIT démarré' /tmp/crm.log || (cat /tmp/crm.log && exit 1)
