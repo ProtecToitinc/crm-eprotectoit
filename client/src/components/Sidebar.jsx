@@ -3,23 +3,27 @@ import { NavLink } from 'react-router-dom';
 import { LayoutGrid, BarChart3, Calendar, MapPin, Users, FileText, Receipt, Phone, StickyNote, Target, PlugZap, BellRing, HardHat, TrendingUp, Megaphone, ShieldCheck, LogOut } from 'lucide-react';
 import { api } from '../api';
 
+// Navigation organisée selon le parcours réel : répondre, vendre, exécuter, administrer.
 const PRINCIPAL = [
-  { to: '/', icon: LayoutGrid, label: 'Tableau de bord', end: true },
-  { to: '/a-traiter', icon: BellRing, label: 'À traiter', badge: 'attention' },
-  { to: '/opportunites', icon: Target, label: 'Opportunités', badge: 'leads' },
-  { to: '/pipeline', icon: BarChart3, label: 'Pipeline' },
-  { to: '/calendrier', icon: Calendar, label: 'Calendrier' },
-  { to: '/carte', icon: MapPin, label: 'Carte des projets' }
+  { to: '/', icon: LayoutGrid, label: 'Vue d’ensemble', end: true },
+  { to: '/a-traiter', icon: BellRing, label: 'À faire aujourd’hui', badge: 'attention' },
+  { to: '/calendrier', icon: Calendar, label: 'Calendrier' }
 ];
-
-const GESTION = [
+const VENTES = [
+  { to: '/opportunites', icon: Target, label: 'Nouveaux prospects', badge: 'leads' },
+  { to: '/pipeline', icon: BarChart3, label: 'Pipeline de vente' },
   { to: '/clients', icon: Users, label: 'Clients' },
-  { to: '/appels', icon: Phone, label: 'Appels' },
-  { to: '/notes', icon: StickyNote, label: 'Notes' },
   { to: '/soumissions', icon: FileText, label: 'Soumissions' },
-  { to: '/suivi-soumissions', icon: TrendingUp, label: 'Suivi des ventes' },
+  { to: '/suivi-soumissions', icon: TrendingUp, label: 'Relances des soumissions' },
+  { to: '/appels', icon: Phone, label: 'Appels et suivis' }
+];
+const OPERATIONS = [
   { to: '/chantiers', icon: HardHat, label: 'Chantiers' },
-  { to: '/facturation', icon: Receipt, label: 'Facturation' },
+  { to: '/carte', icon: MapPin, label: 'Carte des projets' },
+  { to: '/facturation', icon: Receipt, label: 'Facturation' }
+];
+const OUTILS = [
+  { to: '/notes', icon: StickyNote, label: 'Notes' },
   { to: '/publicites', icon: Megaphone, label: 'Publicités Meta' },
   { to: '/integrations', icon: PlugZap, label: 'Intégrations', badge: 'health' },
   { to: '/parametres', icon: ShieldCheck, label: 'Sécurité et sauvegardes' }
@@ -126,18 +130,26 @@ export default function Sidebar({ mobileOpen, onCloseMobile, user, onLogout }) {
         <div style={{ padding: '2px 8px 22px' }}>
           <img src="/logo-white.png" alt="PROTECTOIT" style={{ width: 152, height: 'auto', display: 'block', objectFit: 'contain' }} />
         </div>
-        <NavGroup title="PRINCIPAL" items={PRINCIPAL} badges={badges} />
+        <NavGroup title="QUOTIDIEN" items={PRINCIPAL} badges={badges} />
         <div style={{ height: 10 }} />
-        <NavGroup title="GESTION" items={GESTION} badges={badges} />
+        <NavGroup title="VENTES ET CLIENTS" items={VENTES} badges={badges} />
+        <div style={{ height: 10 }} />
+        <NavGroup title="CHANTIERS ET FINANCES" items={OPERATIONS} badges={badges} />
+        <div style={{ height: 10 }} />
+        <NavGroup title="OUTILS ET RÉGLAGES" items={OUTILS} badges={badges} />
         <UserBlock user={user} onLogout={onLogout} />
       </aside>
 
       {mobileOpen && (
         <div className="md:hidden fixed inset-0 z-30" style={{ background: 'var(--sidebar-bg)', paddingTop: 66, overflowY: 'auto' }}>
           <div style={{ padding: 16, display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
-            <NavGroup title="PRINCIPAL" items={PRINCIPAL} onItemClick={onCloseMobile} badges={badges} />
+            <NavGroup title="QUOTIDIEN" items={PRINCIPAL} onItemClick={onCloseMobile} badges={badges} />
             <div style={{ height: 10 }} />
-            <NavGroup title="GESTION" items={GESTION} onItemClick={onCloseMobile} badges={badges} />
+            <NavGroup title="VENTES ET CLIENTS" items={VENTES} onItemClick={onCloseMobile} badges={badges} />
+            <div style={{ height: 10 }} />
+            <NavGroup title="CHANTIERS ET FINANCES" items={OPERATIONS} onItemClick={onCloseMobile} badges={badges} />
+            <div style={{ height: 10 }} />
+            <NavGroup title="OUTILS ET RÉGLAGES" items={OUTILS} onItemClick={onCloseMobile} badges={badges} />
             <div style={{ height: 18 }} />
             <UserBlock user={user} onLogout={onLogout} />
           </div>
