@@ -38,6 +38,10 @@ export default function Parametres() {
       <Section title="Sauvegardes">
         <p style={{ margin: '0 0 12px', color: 'var(--fg-muted)', fontSize: 13 }}>{backups.data?.policy}</p>
         {backups.data?.lastError && <ErrorNote>Dernière erreur : {backups.data.lastError}</ErrorNote>}
+        <div style={{ fontSize: 13, margin: '0 0 12px', color: 'var(--fg-muted)' }}>
+          Sauvegarde externe : {backups.data?.remoteConfigured ? <b style={{ color: backups.data?.remoteLastOk ? '#5f9d5f' : '#c8924a' }}>{backups.data?.remoteLastOk ? `Dernière copie : ${when(backups.data.remoteLastOk)}` : 'Configurée, aucune copie confirmée'}</b> : <b>Non configurée</b>}
+          {backups.data?.remoteLastError && <ErrorNote>Erreur de copie externe : {backups.data.remoteLastError}</ErrorNote>}
+        </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14, alignItems: 'center' }}>
           <button style={btnAccent} disabled={busy} onClick={async () => { await run(() => api.backups.create(), 'Sauvegarde créée'); backups.reload(); }}><DatabaseBackup size={16} /> Sauvegarder maintenant</button>
           <span style={{ fontSize: 12.5, color: 'var(--fg-muted)' }}>Dernière réussie : {backups.data?.lastOk ? when(backups.data.lastOk) : 'aucune'}</span>
@@ -56,7 +60,7 @@ export default function Parametres() {
             </div>
           ))}
         </div>
-        <p style={{ fontSize: 12, color: 'var(--fg-faint)', marginBottom: 0 }}>Les sauvegardes sont sur le même volume que la base. Télécharge-en une de temps en temps pour en garder une copie ailleurs.</p>
+        <p style={{ fontSize: 12, color: 'var(--fg-faint)', marginBottom: 0 }}>Les sauvegardes locales sont conservées sur le volume CRM. {backups.data?.remoteConfigured ? 'Une copie distincte est aussi envoyée vers le stockage privé Railway; vérifie sa dernière date ci-dessus.' : 'Configure une copie externe pour se protéger contre une perte du volume.'}</p>
       </Section>
 
       <Section title="Connexions ouvertes">
