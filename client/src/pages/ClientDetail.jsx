@@ -546,7 +546,7 @@ export default function ClientDetail() {
               <div key={doc.id} style={{ ...cardStyle, padding: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
                 <FileText size={20} style={{ color: 'var(--accent)', flexShrink: 0 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <a href={/^https:\/\//i.test(doc.chemin) ? doc.chemin : `/uploads/${doc.chemin}`} target="_blank" rel="noreferrer" style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--accent)', textDecoration: 'none', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.nom}</a>
+                  {/^https:\/\//i.test(doc.chemin) ? <a href={doc.chemin} target="_blank" rel="noreferrer" style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--accent)' }}>{doc.nom}</a> : <button type="button" onClick={() => api.privateFiles.download(doc.chemin, doc.nom).catch(e => window.alert(e.message))} style={{ border: 0, background: 'none', padding: 0, cursor: 'pointer', color: 'var(--accent)', fontWeight: 700, fontSize: 13.5, textAlign: 'left' }}>{doc.nom}</button>}
                   <div style={{ fontSize: 11.5, color: 'var(--fg-faint)' }}>{fmtDbDay(doc.created_at)}{doc.taille ? ` · ${Math.round(doc.taille / 1024)} Ko` : ''}</div>
                 </div>
                 <button aria-label="Supprimer le document" onClick={() => { if (confirm(`Supprimer « ${doc.nom} » ?`)) act(() => api.documents.delete(doc.id)); }} style={{ border: 'none', background: 'transparent', color: 'var(--fg-faint)', cursor: 'pointer', padding: 4 }}><Trash2 size={14} /></button>

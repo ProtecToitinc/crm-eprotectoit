@@ -76,7 +76,8 @@ test('contrat signé : chantier créé, étapes, photo avant/après, passage à 
   assert.equal((await fetch(`${srv.base}/api/chantiers/${ch.id}/photos`, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: bad })).status, 400);
   const detail = (await api('GET', `/api/chantiers/${ch.id}`)).data;
   assert.equal(detail.photos.length, 1); assert.equal(detail.photos[0].type, 'avant');
-  const img = await fetch(`${srv.base}/uploads/${detail.photos[0].chemin}`);
+  assert.equal((await fetch(`${srv.base}/uploads/${detail.photos[0].chemin}`)).status, 401);
+  const img = await fetch(`${srv.base}/api/uploads/${detail.photos[0].chemin}`, { headers: { authorization: `Bearer ${token}` } });
   assert.equal(img.status, 200);
   await api('PUT', `/api/chantiers/${ch.id}`, { statut: 'termine' });
   const opps = (await api('GET', '/api/opportunites')).data;

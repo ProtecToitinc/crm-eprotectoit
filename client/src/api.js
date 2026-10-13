@@ -30,6 +30,26 @@ async function req(method, path, body, isFormData = false) {
   return data;
 }
 
+// Authenticated binary fetch for private documents and photos.
+async function getPrivateFile(name) {
+  const res = await fetch('/api/uploads/' + encodeURIComponent(name), {
+    headers: { Authorization: `Bearer ${getToken()}` }
+  });
+  if (!res.ok) throw new Error(res.status === 401 ? 'Session expirée' : 'Fichier inaccessible');
+  return res.blob();
+}
+async function downloadPrivateFile(name, displayName) {
+  const blob = await getPrivateFile(name);
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = displayName || name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
 function qs(params = {}) {
   const p = new URLSearchParams();
   Object.entries(params).forEach(([k, v]) => {
@@ -41,6 +61,7 @@ function qs(params = {}) {
 }
 
 export const api = {
+  privateFiles: { get: getPrivateFile, download: downloadPrivateFile },
   login: (password, user) => req('POST', '/auth/login', { password, user }),
   verify: (token) => req('POST', '/auth/verify', { token }),
   logout: () => req('POST', '/auth/logout', {}),

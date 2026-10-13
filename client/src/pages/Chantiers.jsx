@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Camera, Trash2 } from 'lucide-react';
 import { api } from '../api';
@@ -117,7 +117,7 @@ function ChantierModal({ id, onClose }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 10 }}>
           {ch.photos.map(p => (
             <figure key={p.id} style={{ margin: 0, position: 'relative' }}>
-              <a href={`/uploads/${p.chemin}`} target="_blank" rel="noreferrer"><img src={`/uploads/${p.chemin}`} alt={p.legende || p.type} loading="lazy" style={{ width: '100%', height: 110, objectFit: 'cover', borderRadius: 10, border: '1px solid var(--border)' }} /></a>
+              <PrivatePhoto filename={p.chemin} alt={p.legende || p.type} />
               <figcaption style={{ fontSize: 11.5, color: 'var(--fg-muted)', display: 'flex', justifyContent: 'space-between' }}>
                 <span>{p.type}</span>
                 <button aria-label="Supprimer la photo" onClick={() => window.confirm('Supprimer cette photo?') && run(() => api.chantiers.deletePhoto(id, p.id))} style={{ border: 0, background: 'transparent', cursor: 'pointer', color: 'var(--fg-faint)' }}><Trash2 size={12} /></button>
@@ -131,6 +131,25 @@ function ChantierModal({ id, onClose }) {
       <div><button style={btnDanger} onClick={async () => { if (window.confirm('Supprimer ce chantier (les photos aussi)?')) { await api.chantiers.delete(id); onClose(); } }}><Trash2 size={15} /> Supprimer le chantier</button></div>
     </Modal>
   );
+}
+
+function PrivatePhoto({ filename, alt }) {
+  const [url, setUrl] = useState(null);
+  useEffect(() => {
+    let active = true;
+    let currentUrl = null;
+    api.privateFiles.get(filename).then(blob => {
+      currentUrl = URL.createObjectURL(blob);
+      if (active) setUrl(currentUrl);
+      else URL.revokeObjectURL(currentUrl);
+    }).catch(() => { if (active) setUrl(null); });
+    return () => {
+      active = false;
+      if (currentUrl) URL.revokeObjectURL(currentUrl);
+    };
+  }, [filename]);
+  if (!url) return <div style={{ height: 110, borderRadius: 10, background: 'var(--surface-2)' }} role="img" aria-label={alt} />;
+  return <a href={url} target="_blank" rel="noreferrer"><img src={url} alt={alt} loading="lazy" style={{ width: '100%', height: 110, objectFit: 'cover', borderRadius: 10, border: '1px solid var(--border)' }} /></a>;
 }
 
 function Rentabilite({ oppId }) {
