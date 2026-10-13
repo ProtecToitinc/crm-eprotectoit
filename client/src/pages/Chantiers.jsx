@@ -25,6 +25,10 @@ export default function Chantiers() {
   const [msg, setMsg] = useState('');
   const sel = useSelection();
   const [deleting, setDeleting] = useState(false);
+  const removeOne = async c => {
+    if (!window.confirm(`Supprimer le chantier de ${fullName(c)} (et ses photos)? Le client, l'opportunité et la soumission ne sont pas touchés.`)) return;
+    try { await api.chantiers.delete(c.id); setMsg(''); reload(); notifyBadges(); } catch (e) { setMsg(e.message); }
+  };
   const removeSelected = async () => {
     const n = sel.ids.size;
     if (!n || !window.confirm(`Supprimer ${n} chantier${n > 1 ? 's' : ''} (et leurs photos)? Les clients, opportunités et soumissions ne sont pas touchés.`)) return;
@@ -68,6 +72,7 @@ export default function Chantiers() {
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
                 <CallButton phone={c.telephone} label="Appeler" />
                 <button style={btnAccent} onClick={() => setOpenId(c.id)}>Ouvrir le chantier</button>
+                {!sel.on && <button type="button" style={{ ...btnDanger, marginLeft: 'auto' }} onClick={() => removeOne(c)}><Trash2 size={15} /> Supprimer</button>}
               </div>
             </article>
           );
