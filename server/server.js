@@ -105,8 +105,11 @@ app.post('/api/clients', auth, async (req, res) => {
 app.put('/api/clients/:id', auth, async (req, res) => {
   const { nom, prenom, email, telephone, adresse, ville, code_postal, notes, toiture } = req.body;
   const id = req.params.id;
-  await db.run('UPDATE clients SET nom=?,prenom=?,email=?,telephone=?,adresse=?,ville=?,code_postal=?,notes=? WHERE id=?',
-    [nom, prenom, email, telephone, adresse, ville, code_postal, notes, id]);
+  await db.run(`UPDATE clients SET
+      lat = CASE WHEN IFNULL(adresse,'')=IFNULL(?,'') AND IFNULL(ville,'')=IFNULL(?,'') AND IFNULL(code_postal,'')=IFNULL(?,'') THEN lat END,
+      lng = CASE WHEN IFNULL(adresse,'')=IFNULL(?,'') AND IFNULL(ville,'')=IFNULL(?,'') AND IFNULL(code_postal,'')=IFNULL(?,'') THEN lng END,
+      nom=?,prenom=?,email=?,telephone=?,adresse=?,ville=?,code_postal=?,notes=? WHERE id=?`,
+    [adresse, ville, code_postal, adresse, ville, code_postal, nom, prenom, email, telephone, adresse, ville, code_postal, notes, id]);
   if (toiture) {
     const ex = await db.get('SELECT id FROM toitures WHERE client_id=?', [id]);
     if (ex) {
@@ -124,6 +127,32 @@ app.put('/api/clients/:id', auth, async (req, res) => {
 app.delete('/api/clients/:id', auth, async (req, res) => {
   await db.run('DELETE FROM clients WHERE id=?', [req.params.id]);
   res.json({ ok: true });
+});
+
+// ---- GEOCODAGE (OpenStreetMap Nominatim) ----
+async function nominatim(q) {
+  const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=ca&q=${encodeURIComponent(q)}`;
+  const r = await fetch(url, { headers: { 'User-Agent': 'CRM-eProtectoIT/1.0 (info@eprotectoit.com)' } });
+  if (!r.ok) throw new Error('nominatim ' + r.status);
+  const j = await r.json();
+  return j[0] ? { lat: parseFloat(j[0].lat), lng: parseFloat(j[0].lon) } : null;
+}
+
+app.post('/api/geocode', auth, async (req, res) => {
+  const pending = `lat IS NULL AND (IFNULL(adresse,'')<>'' OR IFNULL(ville,'')<>'')`;
+  const rows = await db.all(`SELECT * FROM clients WHERE ${pending} LIMIT 4`);
+  for (const c of rows) {
+    let pos = null;
+    try {
+      const full = [c.adresse, c.ville, c.code_postal, 'Québec, Canada'].filter(Boolean).join(', ');
+      pos = await nominatim(full);
+      if (!pos && c.ville) { await new Promise(r => setTimeout(r, 1100)); pos = await nominatim(`${c.ville}, Québec, Canada`); }
+    } catch (e) { return res.json({ remaining: -1, error: e.message }); }
+    await db.run('UPDATE clients SET lat=?, lng=? WHERE id=?', pos ? [pos.lat, pos.lng, c.id] : [0, 0, c.id]);
+    await new Promise(r => setTimeout(r, 1100));
+  }
+  const left = await db.get(`SELECT COUNT(*) n FROM clients WHERE ${pending}`);
+  res.json({ remaining: left.n });
 });
 
 // ---- OPPORTUNITES (deals) ----
@@ -289,10 +318,10 @@ app.get('/api/evenements', auth, async (req, res) => {
 });
 
 app.post('/api/evenements', auth, async (req, res) => {
-  const { client_id, opportunite_id, titre, type, date_debut, heure } = req.body;
+  const { client_id, opportunite_id, titre, type, date_debut, heure, google_event_id } = req.body;
   const r = await db.run(
-    'INSERT INTO evenements (client_id,opportunite_id,titre,type,date_debut,heure) VALUES (?,?,?,?,?,?)',
-    [client_id || null, opportunite_id || null, titre, type || 'rdv', date_debut, heure]);
+    'INSERT INTO evenements (client_id,opportunite_id,titre,type,date_debut,heure,google_event_id) VALUES (?,?,?,?,?,?,?)',
+    [client_id || null, opportunite_id || null, titre, type || 'rdv', date_debut, heure, google_event_id || null]);
   if (client_id) {
     await db.run('INSERT INTO historique (client_id,type,description) VALUES (?,?,?)', [client_id, 'evenement', `RDV planifié : ${titre}`]);
   }

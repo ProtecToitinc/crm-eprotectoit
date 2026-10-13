@@ -1,18 +1,73 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { useUI } from '../context/UIContext';
+import { STAGE_MAP } from '../constants';
 import { api } from '../api';
 
-function hashPercent(str, min, max) {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
-  return min + (hash % 1000) / 1000 * (max - min);
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
 export default function Carte() {
   const [clients, setClients] = useState([]);
-  const { refreshKey } = useUI();
+  const [pending, setPending] = useState(0);
+  const { refreshKey, openDeal } = useUI();
+  const mapEl = useRef(null);
+  const map = useRef(null);
+  const layer = useRef(null);
+  const openDealRef = useRef(openDeal);
+  openDealRef.current = openDeal;
 
-  useEffect(() => { api.clients.list().then(c => setClients(c || [])); }, [refreshKey]);
+  const load = () => api.clients.list().then(c => setClients(c || []));
+  useEffect(() => { load(); }, [refreshKey]);
+
+  useEffect(() => {
+    let stop = false;
+    (async () => {
+      while (!stop) {
+        const r = await api.geocode();
+        if (!r || stop) return;
+        setPending(Math.max(r.remaining, 0));
+        await load();
+        if (r.remaining <= 0) return;
+      }
+    })();
+    return () => { stop = true; };
+  }, []);
+
+  useEffect(() => {
+    map.current = L.map(mapEl.current).setView([45.65, -73.7], 9);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19, attribution: '&copy; OpenStreetMap'
+    }).addTo(map.current);
+    layer.current = L.layerGroup().addTo(map.current);
+    window.__openDeal = id => openDealRef.current(id);
+    return () => { map.current.remove(); map.current = null; };
+  }, []);
+
+  const located = clients.filter(c => c.lat && c.lng);
+
+  useEffect(() => {
+    if (!map.current) return;
+    layer.current.clearLayers();
+    const pts = [];
+    located.forEach(c => {
+      const st = STAGE_MAP[c.derniere_etape];
+      const color = st ? st.hue : '#9aa0a6';
+      const m = L.circleMarker([c.lat, c.lng], { radius: 9, color: '#fff', weight: 2, fillColor: color, fillOpacity: 0.95 });
+      m.bindPopup(
+        `<b>${esc(c.prenom)} ${esc(c.nom)}</b><br>${esc(c.adresse)}${c.adresse ? ', ' : ''}${esc(c.ville)}` +
+        `${c.telephone ? `<br>${esc(c.telephone)}` : ''}` +
+        `${st ? `<br><span style="color:${st.hue};font-weight:700">${esc(st.short)}</span>` : ''}` +
+        `${c.derniere_valeur ? ` — ${Math.round(c.derniere_valeur).toLocaleString('fr-CA')} $` : ''}` +
+        `<br><a href="#" onclick="window.__openDeal(${c.id});return false;">Ouvrir le dossier</a>`
+      );
+      m.addTo(layer.current);
+      pts.push([c.lat, c.lng]);
+    });
+    if (pts.length) map.current.fitBounds(pts, { padding: [40, 40], maxZoom: 12 });
+  }, [located.length]);
 
   const byCity = {};
   clients.forEach(c => {
@@ -23,48 +78,19 @@ export default function Carte() {
   const maxCount = Math.max(1, ...cities.map(c => c[1]));
   const total = clients.length;
 
-  const pins = cities.map(([city, count]) => ({
-    city, count,
-    top: `${hashPercent(city + 'top', 18, 82).toFixed(0)}%`,
-    left: `${hashPercent(city + 'left', 12, 88).toFixed(0)}%`
-  }));
-
   return (
     <div className="fadein map-grid">
-      <div style={{
-        position: 'relative', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden', minHeight: 480,
-        boxShadow: 'var(--shadow)', backgroundColor: 'var(--surface-2)',
-        backgroundImage: 'linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px)',
-        backgroundSize: '46px 46px'
-      }}>
-        <div style={{ position: 'absolute', left: 0, top: '42%', width: '100%', height: 14, background: 'color-mix(in srgb, var(--accent) 14%, transparent)', transform: 'rotate(-7deg)' }} />
-        <div style={{ position: 'absolute', left: 0, top: '64%', width: '100%', height: 10, background: 'color-mix(in srgb, #6b8cae 16%, transparent)', transform: 'rotate(4deg)' }} />
-
-        {pins.length === 0 && (
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--fg-faint)', fontSize: 13.5 }}>
-            Aucun client avec une ville renseignée
-          </div>
-        )}
-
-        {pins.map(p => (
-          <div key={p.city} style={{ position: 'absolute', top: p.top, left: p.left, transform: 'translate(-50%,-100%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-            <div style={{
-              width: 30, height: 30, borderRadius: '50% 50% 50% 0', transform: 'rotate(45deg)', background: 'var(--accent)',
-              boxShadow: '0 3px 9px rgba(0,0,0,.28)', display: 'flex', alignItems: 'center', justifyContent: 'center'
-            }}>
-              <span style={{ transform: 'rotate(-45deg)', color: 'var(--accent-fg)', fontSize: 12, fontWeight: 800 }}>{p.count}</span>
-            </div>
-            <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--fg)', background: 'var(--surface)', padding: '1px 8px', borderRadius: 10, border: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{p.city}</span>
-          </div>
-        ))}
-
+      <div style={{ position: 'relative', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden', minHeight: 520, boxShadow: 'var(--shadow)' }}>
+        <div ref={mapEl} style={{ position: 'absolute', inset: 0 }} />
         <div style={{
-          position: 'absolute', left: 16, bottom: 14, fontFamily: 'ui-monospace, monospace', fontSize: 11, color: 'var(--fg-faint)',
+          position: 'absolute', left: 12, bottom: 12, zIndex: 500, fontSize: 11.5, fontWeight: 700, color: 'var(--fg-muted)',
           background: 'var(--surface)', padding: '4px 10px', borderRadius: 8, border: '1px solid var(--border)'
-        }}>// carte interactive — intégration Google Maps à venir</div>
+        }}>
+          {located.length} / {total} clients localisés{pending > 0 ? ` — recherche des adresses (${pending})…` : ''}
+        </div>
       </div>
 
-      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 20, boxShadow: 'var(--shadow)' }}>
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 20, boxShadow: 'var(--shadow)', maxHeight: 560, overflowY: 'auto' }}>
         <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 16 }}>Projets par secteur</div>
         {cities.length === 0 && <p style={{ color: 'var(--fg-faint)', fontSize: 13.5 }}>Aucune donnée</p>}
         {cities.map(([city, count]) => (

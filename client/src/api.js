@@ -25,6 +25,7 @@ export const api = {
   verify: (token) => req('POST', '/auth/verify', { token }),
 
   meta: () => req('GET', '/meta'),
+  geocode: () => req('POST', '/geocode'),
   stats: () => req('GET', '/stats'),
 
   clients: {

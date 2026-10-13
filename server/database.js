@@ -52,6 +52,11 @@ async function init() {
     created_at TEXT DEFAULT (datetime('now'))
   )`);
 
+  if (!(await columnExists('clients', 'lat'))) {
+    await run(`ALTER TABLE clients ADD COLUMN lat REAL`);
+    await run(`ALTER TABLE clients ADD COLUMN lng REAL`);
+  }
+
   await run(`CREATE TABLE IF NOT EXISTS toitures (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
