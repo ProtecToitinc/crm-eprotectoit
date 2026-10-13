@@ -121,7 +121,7 @@ async function consumeOAuthState(state) {
 function securityHeaders(req, res, next) {
   res.set({
     'X-Content-Type-Options': 'nosniff',
-    'Referrer-Policy': 'same-origin',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
     'Content-Security-Policy': "frame-ancestors 'none'",
     'Permissions-Policy': 'camera=(self), geolocation=(self), microphone=()',
     'Cross-Origin-Opener-Policy': 'same-origin'
