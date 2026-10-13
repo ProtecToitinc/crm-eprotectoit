@@ -196,6 +196,7 @@ async function init() {
     updated_at TEXT DEFAULT (datetime('now'))
   )`);
   await run(`CREATE INDEX IF NOT EXISTS idx_appels_client ON appels(client_id)`);
+  await require('./integration-migrations').migrate();
 }
 
 module.exports = { run, get, all, init, dbPath };

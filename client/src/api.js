@@ -113,6 +113,34 @@ export const api = {
     delete: (id) => req('DELETE', `/appels/${id}`)
   },
 
+  leads: {
+    list: () => req('GET','/leads'),
+    count: () => req('GET','/leads/count'),
+    create: data => req('POST','/leads',data),
+    update: (id,data) => req('PUT',`/leads/${id}`,data),
+    remove: id => req('DELETE',`/leads/${id}`),
+    convert: id => req('POST',`/leads/${id}/convertir`,{}),
+    markSeen: () => req('POST','/leads/mark-seen',{})
+  },
+  integrations: {
+    get: () => req('GET','/integrations'),
+    save: data => req('PUT','/integrations',data),
+    webhook: () => req('GET','/integrations/webhook'),
+    renewWebhook: () => req('POST','/integrations/webhook/renew',{}),
+    testEmail: data => req('POST','/integrations/test-email',data)
+  },
+  drive: {
+    status: () => req('GET','/drive/status'),
+    items: () => req('GET','/drive/items'),
+    sync: data => req('POST','/drive/sync',data),
+    link: (id,client_id) => req('POST',`/drive/items/${encodeURIComponent(id)}/link`,{client_id}),
+    create: id => req('POST',`/drive/items/${encodeURIComponent(id)}/create`,{})
+  },
+  metaAds: {
+    poll: () => req('POST','/meta/poll',{}),
+    importHistory: () => req('POST','/leads/import-historique',{}),
+    disconnect: () => req('POST','/meta/disconnect',{})
+  },
   google: {
     status: () => req('GET', '/google/status'),
     authUrl: () => req('GET', '/google/auth-url'),

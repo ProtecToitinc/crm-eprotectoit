@@ -26,6 +26,7 @@ for (const method of ['get', 'post', 'put', 'delete']) {
 
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
 // Sur Railway, DB_PATH pointe vers le volume persistant : on y range aussi les fichiers
 // (le disque du conteneur est effacé à chaque déploiement).
@@ -334,6 +335,7 @@ app.delete('/api/documents/:id', auth, async (req, res) => {
   const doc = await db.get('SELECT * FROM documents WHERE id=?', [req.params.id]);
   if (doc) {
     for (const dir of [uploadsDir, legacyUploadsDir]) {
+      if (/^https:\/\//i.test(doc.chemin)) continue;
       const fp = path.join(dir, doc.chemin);
       if (fs.existsSync(fp)) fs.unlinkSync(fp);
     }
@@ -723,6 +725,10 @@ app.get('/api/stats', auth, async (req, res) => {
   });
 });
 
+// Intégrations Drive / Meta : webhooks protégés par leur clé, routes CRM par auth.
+const integrations = require('./integrations-setup');
+integrations.register(app, { auth });
+
 // Route API inconnue → JSON (et non la page React)
 app.use('/api', (req, res) => res.status(404).json({ message: 'Route introuvable' }));
 
@@ -745,6 +751,7 @@ process.on('unhandledRejection', err => console.error('unhandledRejection', err)
 db.init().then(() => {
   app.listen(PORT, () => {
     console.log(`CRM eProtectoIT démarré sur http://localhost:${PORT}`);
+    integrations.startJobs();
   });
 }).catch(err => {
   console.error('Erreur initialisation DB:', err);

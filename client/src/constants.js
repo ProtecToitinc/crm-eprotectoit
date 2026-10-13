@@ -75,7 +75,9 @@ export function titleFor(screen) {
     map: ['Carte des projets', 'Répartition géographique de vos chantiers'],
     billing: ['Facturation', 'Factures, paiements et encaissements'],
     notes: ['Notes', 'Notes générales et notes par client'],
-    calls: ['Appels', 'Journal des appels et rappels']
+    calls: ['Appels', 'Journal des appels et rappels'],
+    leads: ['Opportunités', 'Leads et demandes Meta Ads'],
+    integrations: ['Intégrations', 'Google Drive, Meta Ads et courriels']
   };
   return titles[screen] || ['', ''];
 }

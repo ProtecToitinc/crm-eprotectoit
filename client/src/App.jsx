@@ -14,6 +14,8 @@ import Soumissions from './pages/Soumissions';
 import Facturation from './pages/Facturation';
 import Notes from './pages/Notes';
 import Appels from './pages/Appels';
+import Opportunites from './pages/Opportunites';
+import Integrations from './pages/Integrations';
 import { api } from './api';
 
 export default function App() {
@@ -51,6 +53,8 @@ export default function App() {
             <Route path="/facturation" element={<Facturation />} />
             <Route path="/notes" element={<Notes />} />
             <Route path="/appels" element={<Appels />} />
+            <Route path="/opportunites" element={<Opportunites api={api} />} />
+            <Route path="/integrations" element={<Integrations api={{...api, meta: api.metaAds}} />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </Layout>
