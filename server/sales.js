@@ -275,16 +275,6 @@ function register(app, { auth, upload, uploadsDir }) {
     for (const r of rows) if (r.opportunite_id) ids.add(r.opportunite_id);
     await setSetting('chantiers_supprimes', JSON.stringify([...ids]));
   };
-  // Tout effacer (confirmation écrite obligatoire) ; les photos sont supprimées avec les chantiers
-  app.delete('/api/chantiers', auth, async (req, res) => {
-    if (req.body?.confirm !== 'EFFACER') return res.status(400).json({ message: 'Confirmation manquante' });
-    const rows = await db.all('SELECT id,opportunite_id FROM chantiers');
-    for (const p of await db.all('SELECT chemin FROM chantier_photos')) fs.rmSync(path.join(uploadsDir, path.basename(p.chemin)), { force: true });
-    await forget(rows);
-    await db.run('DELETE FROM chantiers');
-    await closeTasks("type='chantier'", []);
-    res.json({ ok: true, deleted: rows.length });
-  });
   app.delete('/api/chantiers/:id', auth, async (req, res) => {
     const cur = await db.get('SELECT id,opportunite_id FROM chantiers WHERE id=?', [req.params.id]);
     if (cur) { await forget([cur]); await db.run('DELETE FROM chantiers WHERE id=?', [cur.id]); }
