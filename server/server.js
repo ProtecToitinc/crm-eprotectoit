@@ -51,10 +51,27 @@ const legacyUploadsDir = path.join(__dirname, 'uploads');
 const uploadsDir = process.env.UPLOADS_DIR ||
   (process.env.DB_PATH ? path.join(path.dirname(db.dbPath), 'uploads') : legacyUploadsDir);
 fs.mkdirSync(uploadsDir, { recursive: true });
-app.use('/uploads', express.static(uploadsDir));
-if (uploadsDir !== legacyUploadsDir && fs.existsSync(legacyUploadsDir)) {
-  app.use('/uploads', express.static(legacyUploadsDir));
-}
+// Client documents and chantier photos are private. Never expose this directory as static.
+app.get('/api/uploads/:name', auth, async (req, res) => {
+  const name = req.params.name;
+  if (!name || name !== path.basename(name) || name.startsWith('.')) {
+    return res.status(400).json({ message: 'Nom de fichier invalide' });
+  }
+  const document = await db.get('SELECT id FROM documents WHERE chemin=?', [name]);
+  const photo = await db.get('SELECT id FROM chantier_photos WHERE chemin=?', [name]);
+  if (!document && !photo) return res.status(404).json({ message: 'Fichier introuvable' });
+  for (const dir of [uploadsDir, legacyUploadsDir]) {
+    const full = path.join(dir, name);
+    if (fs.existsSync(full) && fs.statSync(full).isFile()) {
+      res.set('Cache-Control', 'private, no-store');
+      res.set('X-Content-Type-Options', 'nosniff');
+      return res.sendFile(full);
+    }
+  }
+  return res.status(404).json({ message: 'Fichier introuvable' });
+});
+// Reject legacy direct links instead of serving private files without authentication.
+app.use('/uploads', (req, res) => res.status(401).json({ message: 'Accès au fichier via le CRM seulement' }));
 
 const clientDist = path.join(__dirname, '..', 'client', 'dist');
 if (fs.existsSync(clientDist)) {
