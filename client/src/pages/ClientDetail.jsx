@@ -338,11 +338,17 @@ export default function ClientDetail() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {client.opportunites?.map(opp => {
               const sh = opp.service ? SERVICE_HUE[opp.service] || '#9aa0a6' : null;
+              const linkedQuotes = (client.driveQuotes || []).filter(d => d.opportunite_id === opp.id || (d.quote_id && client.quotes?.some(q => q.id === d.quote_id && q.opportunite_id === opp.id)));
               return (
                 <div key={opp.id} style={{ ...cardStyle, padding: 16 }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
                     <div style={{ minWidth: 0 }}>
-                      <div style={{ fontWeight: 700, fontSize: 14 }}>{opp.titre}</div>
+                      <div style={{ fontWeight: 700, fontSize: 14 }}>
+                        {linkedQuotes.length ? <a href={linkedQuotes[0].web_link} target="_blank" rel="noopener noreferrer" title="Ouvrir la soumission dans Google Drive" style={{ color: 'var(--accent)', textDecoration: 'underline', textUnderlineOffset: 3 }}>{opp.titre} ↗</a> : opp.titre}
+                      </div>
+                      {linkedQuotes.length > 0 && <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginTop: 10 }}>
+                        {linkedQuotes.map((d, index) => <a key={d.quote_id || d.web_link} href={d.web_link} target="_blank" rel="noopener noreferrer" style={{ ...btnGhost, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '7px 10px', fontSize: 12 }}>Ouvrir la soumission Drive{linkedQuotes.length > 1 ? ` ${index + 1}` : ''} ↗</a>)}
+                      </div>}
                       {sh && <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 20, background: soft(sh), color: sh, display: 'inline-block', marginTop: 6 }}>{opp.service}</span>}
                       {opp.notes && <div style={{ fontSize: 12.5, color: 'var(--fg-muted)', marginTop: 6, whiteSpace: 'pre-wrap' }}>{opp.notes}</div>}
                       {opp.date_prevue && <div style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 6 }}>Prévu le {fmtDay(opp.date_prevue)}</div>}
