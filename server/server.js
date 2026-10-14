@@ -168,7 +168,15 @@ app.get('/api/clients/:id', auth, async (req, res) => {
     db.all('SELECT * FROM notes WHERE client_id = ? ORDER BY epingle DESC, updated_at DESC, id DESC', [id]),
     db.all(`SELECT * FROM appels WHERE client_id = ? ORDER BY date_appel DESC, IFNULL(heure,'') DESC, id DESC`, [id]),
   ]);
-  res.json({ ...client, toiture, opportunites, taches, documents, historique, quotes, invoices, evenements, notes_client, appels });
+  // Les dossiers sont liés aux fichiers Drive déjà rapprochés par la synchro.
+  // Ne jamais deviner le lien à partir d'un nom de client (risque de mauvais dossier).
+  const driveQuotes = await db.all(`
+    SELECT opportunite_id, quote_id, name, web_link FROM drive_items
+    WHERE client_id = ? AND kind = 'file' AND status = 'ok'
+      AND web_link LIKE 'https://%'
+      AND (opportunite_id IS NOT NULL OR quote_id IS NOT NULL)
+    ORDER BY synced_at DESC`, [id]);
+  res.json({ ...client, toiture, opportunites, taches, documents, historique, quotes, invoices, evenements, notes_client, appels, driveQuotes });
 });
 
 app.post('/api/clients', auth, async (req, res) => {
