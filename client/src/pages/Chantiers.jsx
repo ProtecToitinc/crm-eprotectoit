@@ -6,6 +6,7 @@ import { cardStyle, btnGhost, btnAccent, btnDanger, inputStyle, textareaStyle, F
 import { useLoad, ErrorNote, CallButton, Empty, Loading, Pill, Stat, statGrid, dollars, dollars2, notifyBadges, useSelection, SelectionBar } from '../components/bits';
 import { fmtDay } from '../lib/dates';
 import { useUI } from '../context/UIContext';
+import Inventaire from './Inventaire';
 
 export const CH_STATUTS = [
   ['contrat_signe', 'Contrat signé', '#b27a3e'],
@@ -15,9 +16,23 @@ export const CH_STATUTS = [
   ['paye', 'Facture payée', '#3f7f4f']
 ];
 const statutInfo = k => CH_STATUTS.find(s => s[0] === k) || CH_STATUTS[0];
+export default function Chantiers() {
+  const [tab, setTab] = useState(() => { try { return sessionStorage.getItem('chantiers_tab') === 'inventaire' ? 'inventaire' : 'chantiers'; } catch { return 'chantiers'; } });
+  const pick = t => { setTab(t); try { sessionStorage.setItem('chantiers_tab', t); } catch { /* sans stockage */ } };
+  return (
+    <div>
+      <div role="tablist" style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        {[['chantiers', 'Chantiers'], ['inventaire', 'Inventaire']].map(([k, label]) => (
+          <button key={k} role="tab" aria-selected={tab === k} onClick={() => pick(k)} style={{ ...btnGhost, height: 40, background: tab === k ? 'var(--accent)' : 'var(--surface)', color: tab === k ? 'var(--accent-fg)' : 'var(--fg)', fontWeight: 800 }}>{label}</button>
+        ))}
+      </div>
+      {tab === 'inventaire' ? <Inventaire /> : <ChantiersListe />}
+    </div>
+  );
+}
 const fullName = c => [c.prenom, c.nom].filter(Boolean).join(' ') || 'Client';
 
-export default function Chantiers() {
+function ChantiersListe() {
   const { data, error, loading, reload } = useLoad(() => api.chantiers.list());
   const [openId, setOpenId] = useState(null);
   const [filter, setFilter] = useState('actifs');

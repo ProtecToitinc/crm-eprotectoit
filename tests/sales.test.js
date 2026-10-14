@@ -127,3 +127,22 @@ test('chantiers : ajout manuel, suppression définitive qui ne se recrée pas, �
   assert.equal((await api('DELETE', '/api/chantiers', { confirm: 'EFFACER' })).status === 200, false, 'plus de suppression en bloc');
   assert.equal((await api('GET', `/api/clients/${c.data.id}`)).status, 200, 'le client est intact');
 });
+
+test('inventaire : seuils, utilisation, réception, refus si stock insuffisant, historique', async () => {
+  const c = await api('POST', '/api/inventaire', { nom: 'Noxnano', unite: 'seaux', quantite: 10, seuil_critique: 2, seuil_min: 4, seuil_max: 20 });
+  assert.equal(c.status, 201);
+  assert.equal(c.data.statut, 'ok');
+  assert.equal((await api('POST', '/api/inventaire', { nom: '' })).status, 400);
+  assert.equal((await api('POST', `/api/inventaire/${c.data.id}/mouvement`, { type: 'utilise', quantite: 7 })).data.statut, 'bas');
+  const crit = await api('POST', `/api/inventaire/${c.data.id}/mouvement`, { type: 'utilise', quantite: 1.5 });
+  assert.equal(crit.data.quantite, 1.5);
+  assert.equal(crit.data.statut, 'critique');
+  assert.equal(crit.data.utilise_total, 8.5);
+  assert.equal((await api('POST', `/api/inventaire/${c.data.id}/mouvement`, { type: 'utilise', quantite: 5 })).status, 409, 'pas plus que le stock');
+  assert.equal((await api('POST', `/api/inventaire/${c.data.id}/mouvement`, { type: 'utilise', quantite: 0 })).status, 400);
+  assert.equal((await api('POST', `/api/inventaire/${c.data.id}/mouvement`, { type: 'recu', quantite: 30 })).data.statut, 'surplus');
+  assert.equal((await api('GET', `/api/inventaire/${c.data.id}/mouvements`)).data.length, 4);
+  assert.equal((await api('GET', '/api/inventaire')).data.length, 1);
+  assert.equal((await api('DELETE', `/api/inventaire/${c.data.id}`)).status, 200);
+  assert.equal((await api('GET', '/api/inventaire')).data.length, 0);
+});

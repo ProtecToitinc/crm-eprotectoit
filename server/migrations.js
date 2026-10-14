@@ -84,6 +84,31 @@ async function migrate() {
     legende TEXT,
     created_at TEXT DEFAULT (datetime('now'))
   )`);
+  // Inventaire (produits en stock, seuils, mouvements)
+  await db.run(`CREATE TABLE IF NOT EXISTS inventaire (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nom TEXT NOT NULL,
+    unite TEXT,
+    quantite REAL NOT NULL DEFAULT 0,
+    seuil_min REAL,
+    seuil_max REAL,
+    seuil_critique REAL,
+    notes TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  )`);
+  await db.run(`CREATE TABLE IF NOT EXISTS inventaire_mouvements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id INTEGER NOT NULL REFERENCES inventaire(id) ON DELETE CASCADE,
+    type TEXT NOT NULL,
+    quantite REAL NOT NULL,
+    solde REAL,
+    chantier_id INTEGER REFERENCES chantiers(id) ON DELETE SET NULL,
+    note TEXT,
+    par TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  )`);
+  await db.run('CREATE INDEX IF NOT EXISTS idx_invmv_item ON inventaire_mouvements(item_id)');
   await db.run(`CREATE TABLE IF NOT EXISTS rentabilite (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     opportunite_id INTEGER NOT NULL UNIQUE REFERENCES opportunites(id) ON DELETE CASCADE,
