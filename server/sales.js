@@ -275,6 +275,63 @@ function register(app, { auth, upload, uploadsDir }) {
     for (const r of rows) if (r.opportunite_id) ids.add(r.opportunite_id);
     await setSetting('chantiers_supprimes', JSON.stringify([...ids]));
   };
+  // ---- Inventaire : stock, seuils (critique < minimum < maximum) et mouvements
+  const numOrNull = v => (v === '' || v == null || !Number.isFinite(Number(v)) || Number(v) < 0 ? null : Math.round(Number(v) * 100) / 100);
+  const stockStatut = i => {
+    const q = Number(i.quantite) || 0;
+    if (i.seuil_critique != null && q <= i.seuil_critique) return 'critique';
+    if (i.seuil_min != null && q <= i.seuil_min) return 'bas';
+    if (i.seuil_max != null && q > i.seuil_max) return 'surplus';
+    return 'ok';
+  };
+  const invSql = `SELECT i.*, COALESCE((SELECT SUM(-quantite) FROM inventaire_mouvements m WHERE m.item_id=i.id AND m.type='utilise'),0) AS utilise_total FROM inventaire i`;
+  const invOut = r => ({ ...r, statut: stockStatut(r) });
+  const invFields = b => ({
+    nom: String(b.nom || '').trim().slice(0, 150), unite: String(b.unite || '').trim().slice(0, 30) || null,
+    seuil_min: numOrNull(b.seuil_min), seuil_max: numOrNull(b.seuil_max), seuil_critique: numOrNull(b.seuil_critique),
+    notes: String(b.notes || '').trim().slice(0, 2000) || null
+  });
+  const invWho = req => req.session?.user || req.session?.id || null;
+  app.get('/api/inventaire', auth, async (req, res) => res.json((await db.all(`${invSql} ORDER BY i.nom COLLATE NOCASE`)).map(invOut)));
+  app.post('/api/inventaire', auth, async (req, res) => {
+    const f = invFields(req.body || {});
+    if (!f.nom) return res.status(400).json({ message: 'Donne un nom au produit' });
+    const q = numOrNull(req.body?.quantite) ?? 0;
+    const r = await db.run('INSERT INTO inventaire (nom,unite,quantite,seuil_min,seuil_max,seuil_critique,notes) VALUES (?,?,?,?,?,?,?)', [f.nom, f.unite, q, f.seuil_min, f.seuil_max, f.seuil_critique, f.notes]);
+    if (q) await db.run("INSERT INTO inventaire_mouvements (item_id,type,quantite,solde,note,par) VALUES (?,?,?,?,?,?)", [r.lastID, 'recu', q, q, 'Stock de départ', invWho(req)]);
+    res.status(201).json(invOut(await db.get(`${invSql} WHERE i.id=?`, [r.lastID])));
+  });
+  app.put('/api/inventaire/:id', auth, async (req, res) => {
+    const cur = await db.get('SELECT * FROM inventaire WHERE id=?', [req.params.id]);
+    if (!cur) return res.status(404).json({ message: 'Produit introuvable' });
+    const f = invFields(req.body || {});
+    if (!f.nom) return res.status(400).json({ message: 'Donne un nom au produit' });
+    await db.run("UPDATE inventaire SET nom=?,unite=?,seuil_min=?,seuil_max=?,seuil_critique=?,notes=?,updated_at=datetime('now') WHERE id=?", [f.nom, f.unite, f.seuil_min, f.seuil_max, f.seuil_critique, f.notes, cur.id]);
+    const q = req.body?.quantite === undefined ? null : numOrNull(req.body.quantite);
+    if (q != null && q !== cur.quantite) {
+      await db.run("UPDATE inventaire SET quantite=? WHERE id=?", [q, cur.id]);
+      await db.run("INSERT INTO inventaire_mouvements (item_id,type,quantite,solde,note,par) VALUES (?,?,?,?,?,?)", [cur.id, 'ajustement', q - cur.quantite, q, 'Correction du stock', invWho(req)]);
+    }
+    res.json(invOut(await db.get(`${invSql} WHERE i.id=?`, [cur.id])));
+  });
+  app.post('/api/inventaire/:id/mouvement', auth, async (req, res) => {
+    const cur = await db.get('SELECT * FROM inventaire WHERE id=?', [req.params.id]);
+    if (!cur) return res.status(404).json({ message: 'Produit introuvable' });
+    const type = req.body?.type === 'recu' ? 'recu' : 'utilise';
+    const qty = numOrNull(req.body?.quantite);
+    if (!qty) return res.status(400).json({ message: 'Entre une quantité plus grande que 0' });
+    if (type === 'utilise' && qty > cur.quantite) return res.status(409).json({ message: `Il n'en reste que ${cur.quantite}` });
+    const solde = Math.round((cur.quantite + (type === 'recu' ? qty : -qty)) * 100) / 100;
+    const chantierId = req.body?.chantier_id && (await db.get('SELECT id FROM chantiers WHERE id=?', [req.body.chantier_id])) ? Number(req.body.chantier_id) : null;
+    await db.run("UPDATE inventaire SET quantite=?, updated_at=datetime('now') WHERE id=?", [solde, cur.id]);
+    await db.run('INSERT INTO inventaire_mouvements (item_id,type,quantite,solde,chantier_id,note,par) VALUES (?,?,?,?,?,?,?)',
+      [cur.id, type, type === 'recu' ? qty : -qty, solde, chantierId, String(req.body?.note || '').trim().slice(0, 300) || null, invWho(req)]);
+    res.json(invOut(await db.get(`${invSql} WHERE i.id=?`, [cur.id])));
+  });
+  app.get('/api/inventaire/:id/mouvements', auth, async (req, res) => res.json(await db.all(
+    `SELECT m.*, c.prenom, c.nom FROM inventaire_mouvements m LEFT JOIN chantiers ch ON ch.id=m.chantier_id LEFT JOIN clients c ON c.id=ch.client_id WHERE m.item_id=? ORDER BY m.id DESC LIMIT 100`, [req.params.id])));
+  app.delete('/api/inventaire/:id', auth, async (req, res) => { await db.run('DELETE FROM inventaire WHERE id=?', [req.params.id]); res.json({ ok: true }); });
+
   app.delete('/api/chantiers/:id', auth, async (req, res) => {
     const cur = await db.get('SELECT id,opportunite_id FROM chantiers WHERE id=?', [req.params.id]);
     if (cur) { await forget([cur]); await db.run('DELETE FROM chantiers WHERE id=?', [cur.id]); }

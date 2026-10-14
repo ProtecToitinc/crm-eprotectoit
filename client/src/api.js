@@ -178,6 +178,14 @@ export const api = {
     followUp: (id, data) => req('POST', `/quotes/${id}/suivi`, data),
     lost: (id, raison) => req('POST', `/quotes/${id}/perdue`, { raison })
   },
+  inventaire: {
+    list: () => req('GET', '/inventaire'),
+    create: data => req('POST', '/inventaire', data),
+    update: (id, data) => req('PUT', `/inventaire/${id}`, data),
+    move: (id, data) => req('POST', `/inventaire/${id}/mouvement`, data),
+    moves: id => req('GET', `/inventaire/${id}/mouvements`),
+    delete: id => req('DELETE', `/inventaire/${id}`)
+  },
   chantiers: {
     list: () => req('GET', '/chantiers'),
     get: id => req('GET', `/chantiers/${id}`),
