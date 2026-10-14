@@ -81,7 +81,6 @@ async function runRelances() {
   await closeTasks("type='chantier' AND opportunite_id IN (SELECT opportunite_id FROM chantiers WHERE statut<>'contrat_signe')", []);
   await closeTasks("type='chantier' AND opportunite_id IN (SELECT id FROM opportunites WHERE etape<>'contrat')", []);
   await closeTasks("type='chantier' AND opportunite_id NOT IN (SELECT opportunite_id FROM chantiers WHERE opportunite_id IS NOT NULL)", []);
-  await rappelsVeille();
   return { created };
 }
 
@@ -236,7 +235,6 @@ async function adsDashboard(from, to) {
 }
 
 function register(app, { auth, upload, uploadsDir }) {
-  meteo.register(app, { auth });
   app.get('/api/attention', auth, async (req, res) => res.json(await attention()));
   app.post('/api/relances/run', auth, async (req, res) => res.json(await runRelances()));
   app.get('/api/suivi-soumissions', auth, async (req, res) => res.json(await suiviSoumissions()));
