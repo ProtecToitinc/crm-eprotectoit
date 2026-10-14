@@ -178,6 +178,15 @@ export const api = {
     followUp: (id, data) => req('POST', `/quotes/${id}/suivi`, data),
     lost: (id, raison) => req('POST', `/quotes/${id}/perdue`, { raison })
   },
+  meteo: {
+    get: () => req('GET', '/meteo'),
+    chantiers: () => req('GET', '/meteo/chantiers'),
+    setVille: ville => req('PUT', '/meteo/ville', { ville }),
+    rappel: id => req('GET', `/chantiers/${id}/rappel`),
+    envoyerRappel: id => req('POST', `/chantiers/${id}/rappel/envoyer`),
+    config: () => req('GET', '/rappels/veille/config'),
+    setConfig: auto => req('PUT', '/rappels/veille/config', { auto })
+  },
   inventaire: {
     list: () => req('GET', '/inventaire'),
     create: data => req('POST', '/inventaire', data),

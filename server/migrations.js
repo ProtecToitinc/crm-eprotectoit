@@ -61,6 +61,7 @@ async function migrate() {
   for (const [col, def] of [['date_envoi', 'TEXT'], ['raison_perte', 'TEXT'], ['prochain_suivi', 'TEXT']]) await addColumn('quotes', col, def);
 
   // Chantiers (suivi des travaux), photos et rentabilité
+  // (rappel_envoye_at ajouté plus bas, après la création de la table)
   await db.run(`CREATE TABLE IF NOT EXISTS chantiers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
@@ -76,6 +77,7 @@ async function migrate() {
     updated_at TEXT DEFAULT (datetime('now'))
   )`);
   await db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_chantiers_opp ON chantiers(opportunite_id) WHERE opportunite_id IS NOT NULL');
+  await addColumn('chantiers', 'rappel_envoye_at', 'TEXT');
   await db.run(`CREATE TABLE IF NOT EXISTS chantier_photos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     chantier_id INTEGER NOT NULL REFERENCES chantiers(id) ON DELETE CASCADE,

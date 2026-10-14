@@ -7,6 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const db = require('./database');
 const { localParts, getSetting, setSetting, getSecret, addHistory } = require('./lib');
+const meteo = require('./meteo');
 
 const CHANTIER_STATUTS = ['contrat_signe', 'planifie', 'en_cours', 'termine', 'paye'];
 const PHOTO_TYPES = ['avant', 'apres', 'inspection', 'autre'];
@@ -80,7 +81,36 @@ async function runRelances() {
   await closeTasks("type='chantier' AND opportunite_id IN (SELECT opportunite_id FROM chantiers WHERE statut<>'contrat_signe')", []);
   await closeTasks("type='chantier' AND opportunite_id IN (SELECT id FROM opportunites WHERE etape<>'contrat')", []);
   await closeTasks("type='chantier' AND opportunite_id NOT IN (SELECT opportunite_id FROM chantiers WHERE opportunite_id IS NOT NULL)", []);
+  await rappelsVeille();
   return { created };
+}
+
+// ---------- Météo et rappel de la veille des travaux ----------
+async function rappelsVeille() {
+  const today = localParts();
+  const tomorrow = localParts(new Date(Date.now() + DAY)).date;
+  const auto = (await getSetting('rappel_veille_auto')) === '1';
+  const base = `SELECT ch.*, c.prenom, c.nom, c.email, c.telephone, c.ville FROM chantiers ch JOIN clients c ON c.id=ch.client_id WHERE ch.statut IN ('contrat_signe','planifie','en_cours')`;
+  // Rappel au client la veille
+  for (const ch of await db.all(`${base} AND ch.date_debut=?`, [tomorrow])) {
+    if (ch.rappel_envoye_at) continue;
+    const m = meteo.buildReminder(ch, await meteo.jourPour(ch));
+    await upsertTask({ key: `chantier-veille:${ch.id}:${tomorrow}`, titre: `Rappel client avant les travaux de demain — ${nom(ch)}`,
+      description: ch.email ? `Ouvre le chantier → « Rappel de la veille » → Envoyer. Courriel : ${ch.email}` : `Pas de courriel : appelle ${ch.telephone || 'le client'}. Message : ${m.text.replace(/\n+/g, ' ')}`,
+      due_date: today.date, client_id: ch.client_id, opportunite_id: ch.opportunite_id, type: 'chantier_rappel', priorite: 'haute' });
+    if (auto && ch.email && today.time >= '16:00') {
+      try { await meteo.sendReminder(ch, 'automatique'); } catch { /* retenté au prochain passage (tâche manuelle conservée) */ }
+    }
+  }
+  // Météo défavorable dans les 2 prochains jours : proposer de reporter
+  for (const ch of await db.all(`${base} AND ch.date_debut>=? AND ch.date_debut<=?`, [today.date, localParts(new Date(Date.now() + 2 * DAY)).date])) {
+    const jour = await meteo.jourPour(ch);
+    if (jour?.verdict === 'mauvais') {
+      await upsertTask({ key: `chantier-meteo:${ch.id}:${ch.date_debut}`, titre: `Météo défavorable le ${ch.date_debut} — reporter ? ${nom(ch)}`,
+        description: `${jour.label}. ${jour.raisons.join(' · ')}`, due_date: today.date, client_id: ch.client_id, opportunite_id: ch.opportunite_id, type: 'chantier_meteo', priorite: 'haute' });
+    }
+  }
+  await closeTasks("type='chantier_meteo' AND due_date<?", [today.date]);
 }
 
 // ---------- À traiter maintenant ----------
@@ -206,6 +236,7 @@ async function adsDashboard(from, to) {
 }
 
 function register(app, { auth, upload, uploadsDir }) {
+  meteo.register(app, { auth });
   app.get('/api/attention', auth, async (req, res) => res.json(await attention()));
   app.post('/api/relances/run', auth, async (req, res) => res.json(await runRelances()));
   app.get('/api/suivi-soumissions', auth, async (req, res) => res.json(await suiviSoumissions()));

@@ -5,6 +5,7 @@ import { useUI } from '../context/UIContext';
 import { STAGES, SERVICE_HUE, money } from '../constants';
 import { api } from '../api';
 import Performance from '../components/Performance';
+import Meteo from '../components/Meteo';
 import { parseDay, daysFromToday, relativeDay, timeAgo } from '../lib/dates';
 import { telHref, fullName } from '../lib/search';
 import { iconBtn } from '../components/ui';
@@ -65,6 +66,7 @@ export default function Dashboard() {
 
   return (
     <div className="fadein">
+      <Meteo />
       <section style={{ marginBottom: 20, padding: '20px 22px', borderRadius: 16, border: '1px solid var(--border)', background: 'var(--surface)', boxShadow: 'var(--shadow)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
           <div>
