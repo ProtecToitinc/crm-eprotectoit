@@ -31,11 +31,14 @@ function register(app, { auth }) {
     const period = ['semaine', 'mois', 'annee'].includes(req.query.periode) ? req.query.periode : 'mois';
     const today = localParts().date;
     const from = windowFor(period, today);
+    // Toutes les cartes récapitulatives doivent inclure l'année complète,
+    // même quand le graphique est filtré sur les dernières semaines.
+    const queryStart = [from.start, today.slice(0, 4) + '-01-01', monday(today)].sort()[0];
     // A sale is an accepted quote, never an open quote or an invoice counted again.
     // Montants de soumission peuvent inclure taxes : libellé explicite côté UI.
     const [quotes, invoices] = await Promise.all([
-      db.all("SELECT id, montant, updated_at FROM quotes WHERE statut='acceptee' AND updated_at >= ?", [from.start + ' 00:00:00']),
-      db.all("SELECT id, montant, updated_at FROM invoices WHERE statut='payee' AND updated_at >= ?", [from.start + ' 00:00:00'])
+      db.all("SELECT id, montant, updated_at FROM quotes WHERE statut='acceptee' AND updated_at >= ?", [queryStart + ' 00:00:00']),
+      db.all("SELECT id, montant, updated_at FROM invoices WHERE statut='payee' AND updated_at >= ?", [queryStart + ' 00:00:00'])
     ]);
     const grouped = new Map();
     const upsert = key => { if (!grouped.has(key)) grouped.set(key, { key, label: from.label(key), ventes: 0, vendu: 0, encaisse: 0 }); return grouped.get(key); };
@@ -52,7 +55,7 @@ function register(app, { auth }) {
     }
     const points = [...grouped.values()].sort((a, b) => a.key.localeCompare(b.key)).map(p => ({ ...p, vendu: money(p.vendu), encaisse: money(p.encaisse) }));
     const summarize = fn => {
-      const todayDate = new Date(today + 'T12:00:00Z'), year = today.slice(0, 4), month = today.slice(0, 7), week = monday(today);
+      const year = today.slice(0, 4), month = today.slice(0, 7), week = monday(today);
       const match = day => (fn === 'semaine' ? monday(day) === week : fn === 'mois' ? day.slice(0, 7) === month : day.slice(0, 4) === year);
       const val = { ventes: 0, vendu: 0, encaisse: 0 };
       for (const q of quotes) { const day = asTorontoDay(q.updated_at); if (iso(day) && day <= today && match(day)) { val.ventes++; val.vendu += Number(q.montant) || 0; } }
@@ -60,7 +63,7 @@ function register(app, { auth }) {
       return { ventes: val.ventes, vendu: money(val.vendu), encaisse: money(val.encaisse) };
     };
     const summary = { semaine: summarize('semaine'), mois: summarize('mois'), annee: summarize('annee') };
-    // Full-year boundaries are covered because from.start is no later than Jan 1 of current year.
+    // The summary is independent of the selected chart range.
     res.json({ periode: period, today, summary, points, definition: 'Ventes = soumissions acceptées; montants basés sur les soumissions et factures, potentiellement taxes incluses. La date reflète la dernière modification du statut, pas nécessairement la signature ou le paiement. Le profit n’est pas calculé ici.' });
   });
 }
