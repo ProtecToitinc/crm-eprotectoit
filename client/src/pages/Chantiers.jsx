@@ -7,6 +7,7 @@ import { useLoad, ErrorNote, CallButton, Empty, Loading, Pill, Stat, statGrid, d
 import { fmtDay } from '../lib/dates';
 import { useUI } from '../context/UIContext';
 import Inventaire from './Inventaire';
+import { VERDICT } from '../components/Meteo';
 
 export const CH_STATUTS = [
   ['contrat_signe', 'Contrat signé', '#b27a3e'],
@@ -40,6 +41,10 @@ function ChantiersListe() {
   const [msg, setMsg] = useState('');
   const sel = useSelection();
   const [deleting, setDeleting] = useState(false);
+  const { data: prevs } = useLoad(() => api.meteo.chantiers());
+  const { data: cfg, reload: reloadCfg } = useLoad(() => api.meteo.config());
+  const prevOf = id => (prevs || []).find(p => p.id === id)?.jour;
+  const toggleAuto = async e => { try { await api.meteo.setConfig(e.target.checked); reloadCfg(); } catch (ex) { setMsg(ex.message); } };
   const removeOne = async c => {
     if (!window.confirm(`Supprimer le chantier de ${fullName(c)} (et ses photos)? Le client, l'opportunité et la soumission ne sont pas touchés.`)) return;
     try { await api.chantiers.delete(c.id); setMsg(''); reload(); notifyBadges(); } catch (e) { setMsg(e.message); }
@@ -60,6 +65,10 @@ function ChantiersListe() {
         <button style={{ ...btnAccent, height: 46 }} onClick={() => setCreating(true)}><Plus size={18} /> Nouveau chantier</button>
         {(data || []).length > 0 && <button style={btnGhost} onClick={sel.on ? sel.exit : sel.enter}><ListChecks size={16} /> {sel.on ? 'Annuler la sélection' : 'Sélectionner pour supprimer'}</button>}
       </div>
+      <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: 'var(--fg-muted)', marginBottom: 12 }}>
+        <input type="checkbox" checked={!!cfg?.auto} onChange={toggleAuto} style={{ width: 18, height: 18 }} />
+        Envoyer automatiquement le rappel au client la veille (courriel, vers 16 h). Désactivé par défaut.
+      </label>
       {sel.on && <div style={{ marginBottom: 12 }}><SelectionBar noun="chantier" count={sel.ids.size} total={list.length} busy={deleting} onSelectAll={() => sel.selectAll(list.map(c => c.id))} onClear={sel.clear} onExit={sel.exit} onDelete={removeSelected} /></div>}
       <div style={statGrid}>
         {CH_STATUTS.slice(0, 4).map(([k, label, hue]) => <Stat key={k} label={label} value={(data || []).filter(c => c.statut === k).length} hue={hue} />)}
@@ -82,7 +91,10 @@ function ChantiersListe() {
                   <div style={{ fontSize: 12.5, color: 'var(--fg-muted)', marginTop: 3 }}>{[c.adresse, c.ville].filter(Boolean).join(', ') || c.titre}</div>
                   <div style={{ fontSize: 12, color: 'var(--fg-faint)', marginTop: 2 }}>{c.date_debut ? `Début : ${fmtDay(c.date_debut)}` : 'Date non planifiée'} · {c.nb_photos} photo(s) · {dollars(c.valeur)}</div>
                 </div>
-                <Pill hue={hue}>{label}</Pill>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
+                  <Pill hue={hue}>{label}</Pill>
+                  {prevOf(c.id) && <Pill hue={VERDICT[prevOf(c.id).verdict][1]}>{`Météo : ${VERDICT[prevOf(c.id).verdict][0]}`}</Pill>}
+                </div>
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
                 <CallButton phone={c.telephone} label="Appeler" />
@@ -139,6 +151,35 @@ function NewChantier({ onClose, onCreated }) {
   );
 }
 
+function RappelVeille({ id, dateDebut }) {
+  const { showToast } = useUI();
+  const { data: r, reload } = useLoad(() => api.meteo.rappel(id), [id, dateDebut]);
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  if (!r) return null;
+  if (!r.pret) return <Field label="Rappel de la veille"><div style={{ fontSize: 13, color: 'var(--fg-muted)' }}>{r.message}</div></Field>;
+  const send = async () => {
+    if (!window.confirm(`Envoyer ce rappel par courriel à ${r.to}?`)) return;
+    setBusy(true); setErr('');
+    try { await api.meteo.envoyerRappel(id); showToast('Rappel envoyé'); reload(); } catch (e) { setErr(e.message); }
+    setBusy(false);
+  };
+  const copy = () => { try { navigator.clipboard.writeText(r.text); showToast('Message copié'); } catch { setErr('Copie impossible'); } };
+  return (
+    <Field label="Rappel de la veille">
+      <ErrorNote>{err}</ErrorNote>
+      {r.meteo && <div style={{ marginBottom: 8 }}><Pill hue={VERDICT[r.meteo.verdict][1]}>{`Météo prévue : ${r.meteo.label}, ${Math.round(r.meteo.tmax)} °C — ${VERDICT[r.meteo.verdict][0]}`}</Pill>{r.meteo.raisons.length > 0 && <span style={{ fontSize: 12, color: 'var(--fg-muted)', marginLeft: 8 }}>{r.meteo.raisons.join(' · ')}</span>}</div>}
+      <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 13, background: 'var(--surface-2)', borderRadius: 10, padding: 12, margin: '0 0 10px' }}>{r.text}</pre>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <button type="button" style={btnAccent} disabled={busy || !r.to} onClick={send}>Envoyer le rappel{r.to ? ` à ${r.to}` : ''}</button>
+        <button type="button" style={btnGhost} onClick={copy}>Copier le message (SMS)</button>
+        {!r.to && <span style={{ fontSize: 12.5, color: 'var(--fg-muted)' }}>Pas de courriel pour ce client.</span>}
+        {r.envoye_at && <span style={{ fontSize: 12.5, color: '#5f9d5f' }}>Déjà envoyé le {fmtDay(r.envoye_at)}</span>}
+      </div>
+    </Field>
+  );
+}
+
 function ChantierModal({ id, onClose }) {
   const { showToast } = useUI();
   const { data: ch, error, reload } = useLoad(() => api.chantiers.get(id), [id]);
@@ -183,6 +224,7 @@ function ChantierModal({ id, onClose }) {
       <Field label="Matériaux utilisés"><textarea style={textareaStyle} rows={2} value={f.materiaux} onChange={e => set('materiaux', e.target.value)} placeholder="Produit, quantités…" /></Field>
       <div><button style={btnAccent} disabled={!form} onClick={() => run(() => api.chantiers.update(id, form), 'Chantier enregistré').then(() => setForm(null))}>Enregistrer les notes</button></div>
 
+      <RappelVeille id={id} dateDebut={ch.date_debut} />
       <Field label="Photos">
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
           <select style={{ ...inputStyle, width: 'auto' }} value={photoType} onChange={e => setPhotoType(e.target.value)} aria-label="Type de photo">
