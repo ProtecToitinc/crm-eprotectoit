@@ -1,6 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { api } from '../api';
-import { TrendingUp, Receipt, BadgeDollarSign } from 'lucide-react';
 
 const cash = value => new Intl.NumberFormat('fr-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 }).format(value || 0);
 const periods = [['semaine', 'Semaine'], ['mois', 'Mois'], ['annee', 'Année']];
@@ -17,6 +16,10 @@ export default function Performance() {
   }, [period]);
   const points = data?.periode === period ? data.points : [];
   const max = Math.max(1, ...points.map(p => Math.max(p.vendu, p.encaisse)));
+  const coords = values => values.map((p, i) => ({ x: 26 + (points.length === 1 ? 300 : i * 600 / (points.length - 1)), y: 172 - 146 * p / max }));
+  const sold = coords(points.map(p => p.vendu));
+  const paid = coords(points.map(p => p.encaisse));
+  const linePath = coordinates => coordinates.map((p, i) => `${i ? 'L' : 'M'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
   const total = data?.summary || {};
   return <section style={{ marginTop: 18, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 20, boxShadow: 'var(--shadow)' }}>
     <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
@@ -39,22 +42,26 @@ export default function Performance() {
     </div>
     {error && <p role="alert" style={{ color: '#c4584f' }}>{error}</p>}
     <div style={{ marginTop: 20, display: 'flex', flexWrap: 'wrap', gap: 15, fontSize: 12, color: 'var(--fg-muted)', fontWeight: 600 }}>
-      <span><span style={{ background: 'var(--accent)', display: 'inline-block', width: 11, height: 11, borderRadius: 3, marginRight: 6 }}/> Montant vendu</span>
+      <span><span style={{ background: '#8b9bb1', display: 'inline-block', width: 11, height: 11, borderRadius: 3, marginRight: 6 }}/> Montant vendu</span>
       <span><span style={{ background: '#5f9d5f', display: 'inline-block', width: 11, height: 11, borderRadius: 3, marginRight: 6 }}/> Montant encaissé</span>
     </div>
     {!points.length ? <p style={{ padding: '20px 0', color: 'var(--fg-muted)', fontSize: 13 }}>Aucune vente ni facture payée sur cette période.</p> :
-      <div style={{ overflowX: 'auto', marginTop: 13 }}>
-        <div role="img" aria-label={'Évolution des montants vendus et encaissés : ' + points.map(p => p.label + ', vendu ' + cash(p.vendu) + ', encaissé ' + cash(p.encaisse)).join('; ')} style={{ display: 'flex', alignItems: 'flex-end', gap: 13, height: 222, minWidth: Math.max(460, points.length * 52), borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
-          {points.map(p => <div key={p.key} title={p.label + ' — ' + p.ventes + ' ventes, ' + cash(p.vendu) + ' vendus, ' + cash(p.encaisse) + ' encaissés'} style={{ display: 'flex', flex: 1, alignItems: 'flex-end', flexDirection: 'column', justifyContent: 'flex-end', minWidth: 28, height: '100%' }}>
-            <div style={{ display: 'flex', flex: 1, alignItems: 'flex-end', justifyContent: 'center', width: '100%', gap: 3 }}>
-              <div style={{ width: '42%', height: Math.max(p.vendu > 0 ? 3 : 0, 100 * p.vendu / max) + '%', background: 'var(--accent)', borderRadius: '5px 5px 0 0' }}/>
-              <div style={{ width: '42%', height: Math.max(p.encaisse > 0 ? 3 : 0, 100 * p.encaisse / max) + '%', background: '#5f9d5f', borderRadius: '5px 5px 0 0' }}/>
-            </div>
-            <div style={{ marginTop: 8, width: '100%', textAlign: 'center', color: 'var(--fg-muted)', fontWeight: 650, fontSize: 10 }}>{p.label}</div>
-            <div style={{ textAlign: 'center', width: '100%', fontSize: 10, fontWeight: 800 }}>{p.ventes} vente{p.ventes > 1 ? 's' : ''}</div>
-          </div>)}
+      <div style={{ marginTop: 16, border: '1px solid var(--border)', background: 'var(--surface-2)', borderRadius: 12, padding: '14px 12px 9px' }}>
+        <svg role="img" aria-label={'Évolution des montants vendus et encaissés : ' + points.map(p => p.label + ', vendu ' + cash(p.vendu) + ', encaissé ' + cash(p.encaisse)).join('; ')} viewBox="0 0 650 198" preserveAspectRatio="none" style={{ width: '100%', height: 195, display: 'block', overflow: 'visible' }}>
+          {[26, 75, 124, 172].map(y => <line key={y} x1="24" x2="628" y1={y} y2={y} stroke="var(--border)" strokeWidth="1" strokeDasharray="3 6" />)}
+          {points.length > 1 && <path d={linePath(sold)} fill="none" stroke="#8b9bb1" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />}
+          {points.length > 1 && <path d={linePath(paid)} fill="none" stroke="#579c81" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />}
+          {sold.map((p, i) => <circle key={'v' + i} cx={p.x} cy={p.y} r="3.8" stroke="var(--surface-2)" strokeWidth="1.5" fill="#8b9bb1"><title>{points[i].label} · {points[i].ventes} ventes · {cash(points[i].vendu)} vendus</title></circle>)}
+          {paid.map((p, i) => <circle key={'e' + i} cx={p.x} cy={p.y} r="3.8" stroke="var(--surface-2)" strokeWidth="1.5" fill="#579c81"><title>{points[i].label} · {cash(points[i].encaisse)} encaissés</title></circle>)}
+        </svg>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, overflowX: 'auto', fontSize: 11, color: 'var(--fg-muted)', marginTop: 5 }}>
+          <span>{points[0]?.label}</span>
+          {points.length > 2 && <span>{points[Math.floor((points.length - 1) / 2)]?.label}</span>}
+          {points.length > 1 && <span>{points[points.length - 1]?.label}</span>}
         </div>
+        <p style={{ fontSize: 11, color: 'var(--fg-muted)', margin: '8px 0 0' }}>Survole les points pour voir le montant et le nombre de ventes.</p>
       </div>}
+
     <p style={{ margin: '15px 0 0', fontSize: 11, color: 'var(--fg-muted)' }}>Les montants proviennent des soumissions acceptées et des factures payées (taxes possiblement incluses). Les dates utilisées sont celles de la dernière modification des statuts. Pour calculer le profit, remplir les coûts dans la rentabilité de chaque chantier.</p>
   </section>;
 }
