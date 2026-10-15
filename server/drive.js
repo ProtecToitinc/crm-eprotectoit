@@ -578,6 +578,8 @@ async function buildRun({ dry }) {
   return { drive, dry, ctx: await loadContext(), result: { ok: true, dry, started: new Date().toISOString(), created: 0, matched: 0, unchanged: 0, review: 0, errors: 0, details: [] } };
 }
 async function sync({ dry = true, full = false, limit = 0 } = {}) {
+  if (!dry) return { ok: false, dry: false, message: 'Import Drive désactivé : ajoutez manuellement les soumissions dans chaque fiche client.', details: [] };
+  if (!dry) return { ok: false, dry: false, message: 'Importation Drive désactivée pour éviter les doublons.', details: [] };
   if (active) return { ok: false, message: 'Synchronisation déjà en cours' };
   active = true;
   let run;
@@ -653,6 +655,7 @@ async function sync({ dry = true, full = false, limit = 0 } = {}) {
 }
 /** Lance la synchronisation en arrière-plan (la requête HTTP reviendrait trop tard pour le proxy) ; le CRM interroge /api/drive/run. */
 async function startSync(opts = {}) {
+  if (opts.dry === false) return { ok: false, message: 'Importation Drive désactivée : ajoutez les soumissions manuellement depuis chaque fiche client.' };
   if (active) return { ok: false, message: 'Synchronisation déjà en cours' };
   const gs = await google.status();
   if (!gs?.connected || !gs?.drive) return { ok: false, message: 'Google Drive doit être autorisé (Intégrations → Connecter Google)' };
@@ -674,6 +677,7 @@ async function resolveItem(driveId, { action, client_id }) {
   const item = await db.get('SELECT * FROM drive_items WHERE drive_id=?', [driveId]);
   if (!item) return { ok: false, status: 404, message: 'Élément Drive inconnu' };
   if (!['lier', 'creer', 'ajouter', 'maj', 'ignorer'].includes(action)) return { ok: false, status: 400, message: 'Action invalide' };
+  if (!['ignorer'].includes(action)) return { ok: false, status: 403, message: 'Importation Drive désactivée : les soumissions doivent être ajoutées manuellement.' };
   if (action === 'lier' && !(await db.get('SELECT id FROM clients WHERE id=?', [Number(client_id)]))) return { ok: false, status: 400, message: 'Client introuvable' };
   await db.run('UPDATE drive_items SET decision=?, client_id=?, message=? WHERE drive_id=?', [action, action === 'lier' ? Number(client_id) : null, `Choix manuel : ${action}`, driveId]);
   if (action === 'ignorer') { await db.run("UPDATE drive_items SET status='ignore', message='Ignoré par vous' WHERE drive_id=?", [driveId]); return { ok: true }; }
@@ -698,7 +702,7 @@ async function status() {
   const clients = review.length ? await db.all('SELECT id,prenom,nom,telephone,ville FROM clients ORDER BY nom,prenom') : [];
   return {
     lastSync: await getSetting('drive_last_sync'), summary: parseJson(await getSetting('drive_last_result')), lastError: await getSetting('drive_last_error'),
-    autoEnabled: (await getSetting('drive_sync_enabled')) === '1', review, clients, busy: active, progress
+    autoEnabled: false, review, clients, busy: active, progress
   };
 }
 function register(app, { auth }) {
@@ -710,6 +714,7 @@ function register(app, { auth }) {
   // La synchronisation automatique ne s'active que lorsque plus rien n'est à valider.
   app.post('/api/drive/auto', auth, async (req, res) => {
     const enable = !!req.body?.enabled;
+    if (enable) return res.status(403).json({ ok: false, message: 'Synchronisation automatique désactivée pour éviter les doublons.' });
     if (enable) {
       const open = await db.get("SELECT COUNT(*) AS n FROM drive_items WHERE status IN ('validation','erreur')");
       if (open.n) return res.status(409).json({ ok: false, message: `${open.n} élément(s) à valider ou en erreur : règle-les d'abord.` });

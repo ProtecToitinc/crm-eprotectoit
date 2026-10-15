@@ -141,7 +141,7 @@ test('Drive : sans autorisation Google, l’aperçu répond proprement et l’ac
   const dry = (await srv.call('POST', '/api/drive/sync', { token, body: { dry: true } })).data; // refusé tout de suite : Google non autorisé
   assert.equal(dry.ok, false); assert.match(dry.message, /Drive/);
   const auto = await srv.call('POST', '/api/drive/auto', { token, body: { enabled: true } });
-  assert.equal(auto.status, 409);
+  assert.equal(auto.status, 403);
 });
 
 test('deux utilisateurs : le nom de la personne s’inscrit sur le client et dans le journal', async () => {

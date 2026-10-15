@@ -364,6 +364,13 @@ app.post('/api/documents', auth, upload.single('file'), async (req, res) => {
     fs.unlink(req.file.path, () => {});
     return bad(res, 'Client requis');
   }
+  if (type_doc === 'soumission') {
+    const existing = await db.get("SELECT id FROM documents WHERE client_id=? AND type_doc='soumission' AND lower(nom)=lower(?) AND taille=?", [client_id, req.file.originalname, req.file.size]);
+    if (existing) {
+      fs.unlink(req.file.path, () => {});
+      return res.status(409).json({ message: 'Cette soumission est déjà déposée dans ce dossier client.' });
+    }
+  }
   const r = await db.run('INSERT INTO documents (client_id,nom,type_doc,chemin,taille) VALUES (?,?,?,?,?)',
     [client_id, req.file.originalname, type_doc, req.file.filename, req.file.size]);
   await addHistory(client_id, 'document', `Document ajouté : ${req.file.originalname}`);
@@ -807,7 +814,7 @@ db.init().then(async () => {
     console.log(`CRM eProtectoIT démarré sur http://localhost:${PORT}`);
     if (process.env.DISABLE_JOBS !== '1') {
       // One-shot administrative Drive sync, opt-in through Railway. No OAuth token or client details logged.
-      if (process.env.CRM_DRIVE_ONESHOT === 'preview' || process.env.CRM_DRIVE_ONESHOT === 'import') {
+      if (process.env.CRM_DRIVE_ONESHOT === 'preview') {
         setTimeout(async () => {
           const mode = process.env.CRM_DRIVE_ONESHOT;
           try {
