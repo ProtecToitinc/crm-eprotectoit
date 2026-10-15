@@ -18,6 +18,9 @@ const HIST_HUE = {
 const EMPTY_OPP = { titre: '', etape: 'lead', service: SERVICES[0].name, valeur: '', notes: '', date_prevue: '' };
 const EMPTY_TACHE = { titre: '', description: '', due_date: '', priorite: 'normale' };
 
+const SQFT_PER_SQM = 10.7639104167;
+const sqmToSqft = value => value == null || value === '' ? '' : Math.round(Number(value) * SQFT_PER_SQM * 100) / 100;
+const sqftToSqm = value => value === '' || value == null ? null : Math.round(Number(value) / SQFT_PER_SQM * 10000) / 10000;
 const emptyToNull = v => (v === '' || v === undefined ? null : v);
 
 export default function ClientDetail() {
@@ -105,7 +108,7 @@ export default function ClientDetail() {
       adresse: client.adresse || '', ville: client.ville || '', code_postal: client.code_postal || '', notes: client.notes || '',
       toiture: {
         materiau: client.toiture?.materiau || '', age_annees: client.toiture?.age_annees ?? '',
-        superficie_m2: client.toiture?.superficie_m2 ?? '', etat: client.toiture?.etat || '', notes: client.toiture?.notes || ''
+        superficie_m2: sqmToSqft(client.toiture?.superficie_m2), etat: client.toiture?.etat || '', notes: client.toiture?.notes || ''
       }
     });
     setFormError('');
@@ -122,7 +125,7 @@ export default function ClientDetail() {
       toiture: hasToiture ? {
         materiau: emptyToNull(t.materiau), etat: emptyToNull(t.etat), notes: emptyToNull(t.notes),
         age_annees: t.age_annees === '' ? null : Number(t.age_annees),
-        superficie_m2: t.superficie_m2 === '' ? null : Number(t.superficie_m2)
+        superficie_m2: sqftToSqm(t.superficie_m2)
       } : undefined
     };
     setSaving(true);
@@ -342,7 +345,7 @@ export default function ClientDetail() {
                 </select>
                 <div className="grid grid-cols-2 gap-2">
                   <input aria-label="Âge (ans)" type="number" min="0" placeholder="Âge (ans)" value={form.toiture.age_annees} onChange={e => setForm(f => ({ ...f, toiture: { ...f.toiture, age_annees: e.target.value } }))} style={inputStyle} />
-                  <input aria-label="Superficie (m²)" type="number" min="0" placeholder="Superficie (m²)" value={form.toiture.superficie_m2} onChange={e => setForm(f => ({ ...f, toiture: { ...f.toiture, superficie_m2: e.target.value } }))} style={inputStyle} />
+                  <input aria-label="Superficie (pi²)" type="number" min="0" placeholder="Superficie (pi²)" value={form.toiture.superficie_m2} onChange={e => setForm(f => ({ ...f, toiture: { ...f.toiture, superficie_m2: e.target.value } }))} style={inputStyle} />
                 </div>
                 <select aria-label="État" value={form.toiture.etat} onChange={e => setForm(f => ({ ...f, toiture: { ...f.toiture, etat: e.target.value } }))} style={inputStyle}>
                   <option value="">État…</option>
@@ -352,7 +355,7 @@ export default function ClientDetail() {
               </div>
             ) : (
               <dl style={{ fontSize: 13.5, margin: 0 }}>
-                {[['Matériau', client.toiture?.materiau], ['Âge', client.toiture?.age_annees ? `${client.toiture.age_annees} ans` : null], ['Superficie', client.toiture?.superficie_m2 ? `${client.toiture.superficie_m2} m²` : null], ['État', client.toiture?.etat]]
+                {[['Matériau', client.toiture?.materiau], ['Âge', client.toiture?.age_annees ? `${client.toiture.age_annees} ans` : null], ['Superficie', client.toiture?.superficie_m2 ? `${sqmToSqft(client.toiture.superficie_m2).toLocaleString("fr-CA")} pi²` : null], ['État', client.toiture?.etat]]
                   .map(([k, v]) => v ? (
                     <div key={k} style={{ display: 'flex', gap: 10, padding: '4px 0' }}>
                       <dt style={{ color: 'var(--fg-faint)', width: 96, flexShrink: 0 }}>{k}</dt>
