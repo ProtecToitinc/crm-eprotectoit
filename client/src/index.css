@@ -93,7 +93,7 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 }
 
 .clients-wrap { container-type: inline-size; }
-.clients-row { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1.1fr) minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 1.1fr) minmax(0, 1.1fr); gap: 12px; }
+.clients-row { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, .9fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) 105px; gap: 12px; }
 @container (max-width: 780px) {
   .clients-head { display: none; }
   .clients-row { grid-template-columns: minmax(0, 1fr) auto; gap: 5px 12px; }
@@ -102,6 +102,7 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
   .clients-row .c-etape { grid-column: 2; grid-row: 1; justify-self: end; }
   .clients-row .c-appels { grid-column: 1; grid-row: 2; padding-left: 43px; }
   .clients-row .c-valeur { grid-column: 2; grid-row: 2; justify-self: end; }
+  .clients-row .c-delete { grid-column: 1 / -1; grid-row: 3; justify-self: end; }
 }
 .quotes-row { display: grid; grid-template-columns: 1.15fr 1.4fr 1.5fr .9fr 1fr .85fr 1.45fr; gap: 12px; }
 .invoices-row { display: grid; grid-template-columns: 1.2fr 1.7fr 1fr 1.05fr 1fr 110px; gap: 12px; }
