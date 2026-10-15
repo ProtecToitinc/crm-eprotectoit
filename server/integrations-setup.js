@@ -68,7 +68,8 @@ function startJobs() {
   const metaJob = async () => { try { await leads.pollMeta(); } catch (e) { console.error('[meta] tâche en erreur :', e.message); } };
   const emailJob = async () => { try { await leads.retryNotifications(); } catch (e) { console.error('[mail] tâche en erreur :', e.message); } };
   const every = (fn, interval, first) => { const t = setInterval(fn, interval); t.unref?.(); if (first) setTimeout(fn, first).unref?.(); };
-  every(driveJob, 5 * 60 * 1000);
+  // Importation Drive désactivée : les soumissions sont ajoutées manuellement par client.
+  // Ne pas relancer driveJob, même si l'ancien réglage était activé.
   // Meta : un passage 30 s après le démarrage rattrape les leads arrivés pendant une interruption.
   every(metaJob, 3 * 60 * 1000, 30 * 1000);
   every(emailJob, 10 * 60 * 1000, 60 * 1000);
