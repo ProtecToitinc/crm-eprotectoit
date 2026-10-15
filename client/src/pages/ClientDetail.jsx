@@ -37,6 +37,7 @@ export default function ClientDetail() {
   const [tacheForm, setTacheForm] = useState(EMPTY_TACHE);
   const [modalError, setModalError] = useState('');
   const fileRef = useRef();
+  const quoteFileRef = useRef();
   const tabsRef = useRef(null);
 
   const tab = TAB_KEYS.includes(params.get('tab')) ? params.get('tab') : 'info';
@@ -176,6 +177,17 @@ export default function ClientDetail() {
     }
   }
 
+  async function uploadQuote(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('client_id', id);
+    fd.append('type_doc', 'soumission');
+    await act(() => api.documents.upload(fd), 'Soumission ajoutée à ce client');
+  }
+
   async function uploadFile(e) {
     const file = e.target.files?.[0];
     e.target.value = '';
@@ -247,6 +259,27 @@ export default function ClientDetail() {
           </div>
         </section>
       )}
+
+      <section aria-label="Soumissions du client" style={{ ...cardStyle, padding: 16, marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ minWidth: 0 }}>
+            <strong style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 14 }}><FileText size={17} color="var(--accent)" /> Soumissions du client</strong>
+            <div style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 5 }}>Ajoute toi-même un PDF, Excel, Word ou autre document. Aucun import automatique depuis Drive.</div>
+          </div>
+          <button type="button" className="btn-ghost" style={{ ...btnAccent, height: 38 }} onClick={() => quoteFileRef.current?.click()}><Upload size={15}/> Déposer une soumission</button>
+          <input ref={quoteFileRef} type="file" accept=".pdf,.xlsx,.xls,.docx,.doc,.csv,.png,.jpg,.jpeg,.txt" hidden onChange={uploadQuote} />
+        </div>
+        {(client.documents || []).filter(d => d.type_doc === 'soumission').map(d => (
+          <div key={d.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, borderTop: '1px solid var(--border)', marginTop: 10, paddingTop: 10, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12.5, fontWeight: 700, overflowWrap: 'anywhere' }}>{d.nom}</span>
+            <div style={{ display: 'flex', gap: 7 }}>
+              {/^https:\/\//i.test(d.chemin) ? <a href={d.chemin} target="_blank" rel="noopener noreferrer" style={{ ...btnGhost, textDecoration: 'none' }}>Voir soumission ↗</a> :
+                <button type="button" style={btnGhost} onClick={() => api.privateFiles.download(d.chemin, d.nom).catch(e => showToast(e.message))}>Voir soumission</button>}
+              <button type="button" aria-label={`Supprimer ${d.nom}`} title="Supprimer le document" style={{ ...btnGhost, color: '#c4584f' }} onClick={() => window.confirm(`Supprimer la soumission « ${d.nom} » du CRM ?`) && act(() => api.documents.delete(d.id), 'Soumission supprimée')}><Trash2 size={14}/></button>
+            </div>
+          </div>
+        ))}
+      </section>
 
       <div ref={tabsRef} role="tablist" className="hscroll" style={{ display: 'flex', gap: 2, borderBottom: '1px solid var(--border)', marginBottom: 22 }}>
         {tabs.map(t => (
