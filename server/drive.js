@@ -578,6 +578,7 @@ async function buildRun({ dry }) {
   return { drive, dry, ctx: await loadContext(), result: { ok: true, dry, started: new Date().toISOString(), created: 0, matched: 0, unchanged: 0, review: 0, errors: 0, details: [] } };
 }
 async function sync({ dry = true, full = false, limit = 0 } = {}) {
+  if (!dry) return { ok: false, dry: false, message: 'Import Drive désactivé : ajoutez manuellement les soumissions dans chaque fiche client.', details: [] };
   if (!dry) return { ok: false, dry: false, message: 'Importation Drive désactivée pour éviter les doublons.', details: [] };
   if (active) return { ok: false, message: 'Synchronisation déjà en cours' };
   active = true;
