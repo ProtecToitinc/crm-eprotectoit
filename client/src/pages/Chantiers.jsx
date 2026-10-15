@@ -7,6 +7,7 @@ import { useLoad, ErrorNote, CallButton, Empty, Loading, Pill, Stat, statGrid, d
 import { fmtDay } from '../lib/dates';
 import { useUI } from '../context/UIContext';
 import Inventaire from './Inventaire';
+import Meteo from '../components/Meteo';
 
 export const CH_STATUTS = [
   ['contrat_signe', 'Contrat signé', '#b27a3e'],
@@ -26,7 +27,7 @@ export default function Chantiers() {
           <button key={k} role="tab" aria-selected={tab === k} onClick={() => pick(k)} style={{ ...btnGhost, height: 40, background: tab === k ? 'var(--accent)' : 'var(--surface)', color: tab === k ? 'var(--accent-fg)' : 'var(--fg)', fontWeight: 800 }}>{label}</button>
         ))}
       </div>
-      {tab === 'inventaire' ? <Inventaire /> : <ChantiersListe />}
+      {tab === 'inventaire' ? <Inventaire /> : <><Meteo /><ChantiersListe /></>}
     </div>
   );
 }
