@@ -103,7 +103,7 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
   .clients-row .c-appels { grid-column: 1; grid-row: 2; padding-left: 43px; }
   .clients-row .c-valeur { grid-column: 2; grid-row: 2; justify-self: end; }
 }
-.quotes-row { display: grid; grid-template-columns: 1.3fr 1.5fr 1.7fr 1fr 1.1fr 1fr; gap: 12px; }
+.quotes-row { display: grid; grid-template-columns: 1.15fr 1.4fr 1.5fr .9fr 1fr .85fr 1.45fr; gap: 12px; }
 .invoices-row { display: grid; grid-template-columns: 1.2fr 1.7fr 1fr 1.05fr 1fr 110px; gap: 12px; }
 
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
