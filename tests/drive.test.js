@@ -111,65 +111,13 @@ test('aperçu (dry-run) : aucune écriture dans la base, mais un plan détaillé
   assert.ok(dry.review >= 1, 'le doublon « Paul Gagnon » doit être soumis à validation');
 });
 
-test('synchronisation réelle : aucun doublon de client / soumission, valeurs existantes conservées', async () => {
-  const real = await drive.sync({ dry: false, full: true });
-  assert.equal(real.errors, 0, JSON.stringify(real.details.filter(d => d.action === 'erreur')));
-  // Luc et Jad rapprochés (numéro / téléphone), pas recréés
-  assert.equal((await db.all("SELECT id FROM clients WHERE prenom='Luc'")).length, 1);
-  assert.equal((await db.all("SELECT id FROM clients WHERE prenom='Jad'")).length, 1);
-  assert.equal(await count('quotes'), 2 + 1 /* Nathalie */ + 1 /* Version Deux #51 */ , 'les anciennes soumissions sont reprises, pas dupliquées');
-  const opp1 = await db.get('SELECT * FROM opportunites WHERE id=1');
-  assert.equal(opp1.etape, 'complete', 'une opportunité complétée n’est jamais rétrogradée');
-  const opp2 = await db.get('SELECT * FROM opportunites WHERE id=2');
-  assert.equal(opp2.etape, 'contrat'); assert.match(opp2.notes, /Soumission #55/, 'le numéro est ajouté à l’ancienne opportunité sans numéro');
-  const q2 = await db.get('SELECT * FROM quotes WHERE id=2'); assert.equal(q2.opportunite_id, 2); assert.equal(q2.montant, 2742.15);
-  // Nouveau client complet
-  const n = await db.get("SELECT * FROM clients WHERE prenom='Nathalie'");
-  assert.equal(n.telephone, '438-555-0000'); assert.equal(n.code_postal, 'H7X 1A1');
-  assert.equal((await db.all('SELECT * FROM toitures WHERE client_id=?', [n.id])).length, 1);
-  assert.equal((await db.get("SELECT COUNT(*) n FROM opportunites WHERE client_id=? AND etape='soumission'", [n.id])).n, 1);
-  // Dossier sans contrat : client « lead » sans les parenthèses du nom de dossier
-  const v = await db.get("SELECT * FROM clients WHERE prenom='Dossier'");
-  assert.equal(v.nom, 'Vide'); assert.match(v.notes, /aucun fichier/);
-  // Copie ancienne ignorée
-  assert.equal((await db.get("SELECT status FROM drive_items WHERE drive_id='X7a'")).status, 'ignore');
-  // Lead existant « Marc » : rapproché (pas de 2e opportunité)
-  assert.equal((await db.all('SELECT id FROM opportunites WHERE client_id=5')).length, 1);
-});
-
-test('« Paul Gagnon » en double : mis en attente de validation, rien n’est créé', async () => {
-  const st = await drive.status();
-  const item = st.review.find(r => r.name.startsWith('Paul'));
-  assert.ok(item, 'élément à valider présent'); assert.match(item.message, /Nom présent plusieurs fois/);
-  assert.equal(st.autoEnabled, false);
-  assert.equal((await db.all("SELECT id FROM clients WHERE prenom='Paul'")).length, 2);
-});
-
-test('relancer la synchronisation ne change rien (idempotent)', async () => {
-  const snap = async () => JSON.stringify([await count('clients'), await count('opportunites'), await count('quotes'), await count('documents'), await count('toitures')]);
-  const a = await snap(); await drive.sync({ dry: false, full: true }); assert.equal(await snap(), a);
-});
-
-test('données modifiées à la main : jamais écrasées', async () => {
-  await db.run("UPDATE clients SET ville='Ville choisie par moi', telephone='514-999-9999' WHERE prenom='Nathalie'");
-  await db.run("UPDATE opportunites SET valeur=4242 WHERE client_id=(SELECT id FROM clients WHERE prenom='Nathalie')");
-  blobs.set('X3', await contract({ numero: 200, nom: 'Nouvelle', prenom: 'Nathalie', tel: '4385550000', email: 'n@example.test', ville: 'Autre ville', travaux: 3500, total: 4024.13 }));
-  tree.F3[0].modifiedTime = '2026-07-01T00:00:00Z';
-  await drive.sync({ dry: false, full: true });
-  const c = await db.get("SELECT * FROM clients WHERE prenom='Nathalie'");
-  assert.equal(c.ville, 'Ville choisie par moi'); assert.equal(c.telephone, '514-999-9999');
-  assert.equal((await db.get('SELECT valeur FROM opportunites WHERE client_id=?', [c.id])).valeur, 4242);
-});
-
-test('résolution manuelle : lier, puis activation automatique seulement quand tout est réglé', async () => {
-  const st = await drive.status();
-  const item = st.review.find(r => r.name.startsWith('Paul'));
-  const r = await drive.resolveItem(item.drive_id, { action: 'lier', client_id: 3 });
-  assert.equal(r.ok, true, JSON.stringify(r));
-  assert.equal((await db.get("SELECT client_id,status FROM drive_items WHERE drive_id='X4'")).client_id, 3);
-  assert.equal((await db.all("SELECT id FROM clients WHERE prenom='Paul'")).length, 2, 'aucun client créé');
-  assert.equal((await db.get('SELECT COUNT(*) n FROM opportunites WHERE client_id=3')).n, 1);
-  assert.equal((await drive.status()).review.length, 0);
+test('les soumissions Drive ne sont plus importées dans le CRM', async () => {
+  const before = [await count('clients'), await count('opportunites'), await count('quotes'), await count('documents'), await count('drive_items')];
+  const result = await drive.sync({ dry: false, full: true });
+  assert.equal(result.ok, false);
+  assert.match(result.message, /désactivé/);
+  assert.deepEqual([await count('clients'), await count('opportunites'), await count('quotes'), await count('documents'), await count('drive_items')], before);
+  assert.equal((await drive.status()).autoEnabled, false);
 });
 
 test('fichier illisible (pas un classeur) : erreur claire, pas de plantage', async () => {
@@ -180,33 +128,6 @@ test('fichier illisible (pas un classeur) : erreur claire, pas de plantage', asy
 test('montants d’essai (moins de 100 $) ignorés', async () => {
   const p = await drive.parseContract(await contract({ nom: 'Essai', prenom: 'Gabarit', travaux: 2.22, total: 2.55 }));
   assert.equal(p.travaux, null); assert.equal(p.total, null);
-});
-
-test('contrat au numéro inconnu pour un client déjà importé : à valider, puis « mettre à jour l’ancienne »', async () => {
-  await db.run("INSERT INTO clients (id,nom,prenom,telephone,notes) VALUES (20,'Revision','Rita','514-777-0000','Importé Drive')");
-  await db.run("INSERT INTO opportunites (id,client_id,titre,etape,valeur,notes) VALUES (20,20,'Protection Toiture - X','soumission',1000,'Soumission #10 - Importé Drive')");
-  await db.run("INSERT INTO quotes (id,reference,client_id,opportunite_id,montant,statut,notes) VALUES (20,'SOU-2026-0900',20,20,1149.75,'envoyee','Soumission #10 - Importé Drive')");
-  addFolder('F20', 'Rita Revision'); await addFile('F20', 'X20', 'Rita Contrat.xlsx', await contract({ numero: 11, nom: 'Revision', prenom: 'Rita', tel: '5147770000', adresse: '5 rue Rev', travaux: 1500, total: 1724.63 }));
-  const before = [await count('opportunites'), await count('quotes')];
-  await drive.sync({ dry: false, full: true });
-  const item = await db.get("SELECT * FROM drive_items WHERE drive_id='X20'");
-  assert.equal(item.status, 'validation'); assert.match(item.message, /nouvelle soumission ou mise à jour/i);
-  assert.deepEqual([await count('opportunites'), await count('quotes')], before, 'rien créé avant ton choix');
-  const r = await drive.resolveItem('X20', { action: 'maj' });
-  assert.equal(r.ok, true, JSON.stringify(r));
-  assert.deepEqual([await count('opportunites'), await count('quotes')], before, 'mise à jour, pas de doublon');
-  assert.match((await db.get('SELECT notes FROM opportunites WHERE id=20')).notes, /#11/);
-  assert.equal((await db.get('SELECT montant FROM quotes WHERE id=20')).montant, 1724.63);
-});
-
-test('copie du gabarit : aucune soumission ni montant créés', async () => {
-  addFolder('F21', 'Gabi Test'); await addFile('F21', 'X21', 'Copy of Gabarit Contrat.xlsx', await contract({ numero: 300, nom: 'Test', prenom: 'Gabi', tel: '5145558888', travaux: 2700, total: 3104.33 }));
-  const q = await count('quotes');
-  await drive.sync({ dry: false, full: true });
-  assert.equal(await count('quotes'), q);
-  const c = await db.get("SELECT id FROM clients WHERE prenom='Gabi'");
-  assert.ok(c, 'le client est créé');
-  assert.equal((await db.get('SELECT etape,valeur FROM opportunites WHERE client_id=?', [c.id])).etape, 'lead');
 });
 
 test('formules sans résultat enregistré (fichiers convertis par Google) : calculées localement', async () => {
