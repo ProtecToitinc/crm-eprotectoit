@@ -235,6 +235,19 @@ export default function ClientDetail() {
         </div>
       </div>
 
+      {(client.driveQuotes || []).length > 0 && (
+        <section aria-label="Soumissions Google Drive" style={{ ...cardStyle, padding: '14px 18px', marginBottom: 18 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+            <FileText size={18} color="var(--accent)"/>
+            <strong style={{ fontSize: 14 }}>Soumissions Google Drive</strong>
+            <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>Documents d’origine liés à ce client</span>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {client.driveQuotes.map(d => <a key={d.web_link} href={d.web_link} target="_blank" rel="noopener noreferrer" style={{ ...btnGhost, display: 'inline-flex', alignItems: 'center', gap: 7, textDecoration: 'none', height: 38, fontSize: 12.5 }} title={d.name}>Voir soumission ↗ {d.name && <span style={{ maxWidth: 190, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--fg-muted)' }}>{d.name}</span>}</a>)}
+          </div>
+        </section>
+      )}
+
       <div ref={tabsRef} role="tablist" className="hscroll" style={{ display: 'flex', gap: 2, borderBottom: '1px solid var(--border)', marginBottom: 22 }}>
         {tabs.map(t => (
           <button key={t.key} role="tab" aria-selected={tab === t.key} onClick={() => setTab(t.key)} style={{

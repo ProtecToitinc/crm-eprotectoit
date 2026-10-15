@@ -135,6 +135,7 @@ export default function Notes() {
     try { await api.notes.update(n.id, { epingle: n.epingle ? 0 : 1 }); bumpRefresh(); } catch (e) { showToast(e.message); }
   };
   const remove = async n => {
+    if (!window.confirm('Supprimer cette note du CRM ?')) return;
     if (!window.confirm('Supprimer cette note ?')) return;
     try { await api.notes.delete(n.id); bumpRefresh(); showToast('Note supprimée'); } catch (e) { showToast(e.message); }
   };

@@ -189,6 +189,7 @@ export default function Appels() {
     try { await api.appels.update(a.id, { rappel_fait: 1 }); bumpRefresh(); showToast('Rappel marqué comme fait'); } catch (e) { showToast(e.message); }
   };
   const remove = async a => {
+    if (!window.confirm('Supprimer cet appel du CRM ?')) return;
     if (!window.confirm('Supprimer cet appel ?')) return;
     try { await api.appels.delete(a.id); bumpRefresh(); showToast('Appel supprimé'); } catch (e) { showToast(e.message); }
   };

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { FileText } from 'lucide-react';
+import { FileText, Trash2, ExternalLink } from 'lucide-react';
 import { useUI } from '../context/UIContext';
 import { QUOTE_STATUSES, SERVICE_HUE, money, soft } from '../constants';
 import { api } from '../api';
@@ -39,6 +39,7 @@ function comparator(sort) {
 export default function Soumissions() {
   const [quotes, setQuotes] = useState(null);
   const [error, setError] = useState('');
+  const [deletingId, setDeletingId] = useState(null);
   const [sort, setSort] = useStoredChoice('crm_quotes_sort', 'recent', SORTS.map(s => s.value));
   const { refreshKey, openDeal, bumpRefresh, showToast } = useUI();
 
@@ -57,6 +58,13 @@ export default function Soumissions() {
     }
   }
 
+  async function removeQuote(q) {
+    if (!window.confirm(`Supprimer la soumission ${q.reference} de ${fullName(q)} du CRM ? Le document original Google Drive sera conservé.`)) return;
+    setDeletingId(q.id);
+    try { await api.quotes.delete(q.id); load(); bumpRefresh(); showToast('Soumission supprimée du CRM'); }
+    catch (e) { showToast(e.message || 'Suppression impossible'); }
+    finally { setDeletingId(null); }
+  }
   const list = quotes || [];
   const sorted = useMemo(() => [...list].sort(comparator(sort)), [list, sort]);
 
@@ -105,9 +113,9 @@ export default function Soumissions() {
 
         {quotes && quotes.length > 0 && (
           <div style={{ overflowX: 'auto' }}>
-            <div style={{ minWidth: 760 }}>
+            <div style={{ minWidth: 960 }}>
               <div className="quotes-row" style={{ padding: '11px 20px', fontSize: 10.5, fontWeight: 700, letterSpacing: '.05em', color: 'var(--fg-faint)', borderBottom: '1px solid var(--border)', textTransform: 'uppercase' }}>
-                <div>Référence</div><div>Client</div><div>Service</div><div>Montant</div><div>Statut</div><div>Date</div>
+                <div>Référence</div><div>Client</div><div>Service</div><div>Montant</div><div>Statut</div><div>Date</div><div>Actions</div>
               </div>
               {sorted.map(q => {
                 const sh = q.service ? SERVICE_HUE[q.service] || '#9aa0a6' : '#9aa0a6';
@@ -127,6 +135,10 @@ export default function Soumissions() {
                       </select>
                     </div>
                     <div style={{ color: 'var(--fg-muted)' }}>{fmtDbDay(q.created_at)}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 5 }}>
+                      {q.drive_url && <a href={q.drive_url} target="_blank" rel="noopener noreferrer" aria-label={`Voir la soumission ${q.reference} dans Drive`} title="Voir la soumission Drive" style={{ fontSize: 11, color: 'var(--fg)', textDecoration: 'none', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}><ExternalLink size={14}/> Voir soumission</a>}
+                      <button type="button" disabled={deletingId === q.id} title="Supprimer cette soumission du CRM" aria-label={`Supprimer ${q.reference}`} onClick={() => removeQuote(q)} style={{ color: '#c4584f', border: '1px solid var(--border)', borderRadius: 8, background: 'transparent', padding: '7px', cursor: 'pointer', opacity: deletingId === q.id ? .45 : 1 }}><Trash2 size={15}/></button>
+                    </div>
                   </div>
                 );
               })}
