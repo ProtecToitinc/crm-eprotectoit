@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Users, Search, X, Phone, ListChecks } from 'lucide-react';
+import { Plus, Users, Search, X, Phone, ListChecks, Trash2 } from 'lucide-react';
 import { useSelection, SelectionBar } from '../components/bits';
 import { useUI } from '../context/UIContext';
 import { SERVICE_HUE, STAGE_MAP, money, soft, initials, avatarColor } from '../constants';
@@ -99,6 +99,23 @@ export default function Clients() {
     }
   }
 
+  async function removeClient(c) {
+    const name = fullName(c) || 'ce client';
+    if (!window.confirm(`Supprimer ${name} et toutes ses données dans le CRM (dossiers, soumissions, appels et documents) ? Cette action est destructive.`)) return;
+    setDeleting(true);
+    try {
+      await api.clients.delete(c.id);
+      showToast(`Client ${name} supprimé`);
+      bumpRefresh();
+      load();
+    } catch (e) {
+      showToast(e.message || 'Impossible de supprimer le client');
+      setError(e.message || 'Impossible de supprimer le client');
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   const set = key => e => setForm(f => ({ ...f, [key]: e.target.value }));
   const chips = [['all', 'Tous'], ['called', 'Ont appelé'], ['callback', 'À rappeler']];
 
@@ -160,7 +177,7 @@ export default function Clients() {
           <div className="clients-wrap">
             <div>
               <div className="clients-row clients-head" style={{ padding: '11px 20px', fontSize: 10.5, fontWeight: 700, letterSpacing: '.05em', color: 'var(--fg-faint)', borderBottom: '1px solid var(--border)', textTransform: 'uppercase' }}>
-                <div>Client</div><div>Ville</div><div>Service</div><div>Valeur</div><div>Étape</div><div>Appels</div><div>Dernier contact</div>
+                <div>Client</div><div>Ville</div><div>Service</div><div>Valeur</div><div>Étape</div><div>Appels</div><div>Dernier contact</div><div>Actions</div>
               </div>
               {rows.map(c => {
                 const ah = avatarColor(c.id);
@@ -194,6 +211,13 @@ export default function Clients() {
                       ) : <span style={{ color: 'var(--fg-faint)' }}>—</span>}
                     </div>
                     <div className="c-contact" style={{ color: 'var(--fg-muted)' }}>{c.dernier_contact ? fmtDbDay(c.dernier_contact, { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</div>
+                    <div className="c-delete" style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <button type="button" aria-label={`Supprimer ${fullName(c)}`} title={`Supprimer ${fullName(c)}`} disabled={deleting}
+                        onClick={e => { e.stopPropagation(); removeClient(c); }}
+                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: '#c4584f', fontWeight: 700, fontSize: 12, cursor: 'pointer', opacity: deleting ? .5 : 1 }}>
+                        <Trash2 size={15} /> Supprimer
+                      </button>
+                    </div>
                   </div>
                 );
               })}
