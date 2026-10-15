@@ -171,9 +171,10 @@ app.get('/api/clients/:id', auth, async (req, res) => {
   // Les dossiers sont liés aux fichiers Drive déjà rapprochés par la synchro.
   // Ne jamais deviner le lien à partir d'un nom de client (risque de mauvais dossier).
   const driveQuotes = await db.all(`
-    SELECT opportunite_id, quote_id, name, web_link FROM drive_items
+    SELECT opportunite_id, quote_id, name,
+      COALESCE(NULLIF(web_link, ''), 'https://drive.google.com/file/d/' || drive_id || '/view') AS web_link
+    FROM drive_items
     WHERE client_id = ? AND kind = 'file' AND status = 'ok'
-      AND web_link LIKE 'https://%'
       AND (opportunite_id IS NOT NULL OR quote_id IS NOT NULL)
     ORDER BY synced_at DESC`, [id]);
   res.json({ ...client, toiture, opportunites, taches, documents, historique, quotes, invoices, evenements, notes_client, appels, driveQuotes });
@@ -395,8 +396,12 @@ async function nextReference(prefix, table) {
 
 app.get('/api/quotes', auth, async (req, res) => {
   res.json(await db.all(`
-    SELECT q.*, c.nom, c.prenom FROM quotes q
-    JOIN clients c ON q.client_id = c.id ORDER BY q.created_at DESC, q.id DESC`));
+    SELECT q.*, c.nom, c.prenom,
+      (SELECT COALESCE(NULLIF(di.web_link, ''), 'https://drive.google.com/file/d/' || di.drive_id || '/view')
+       FROM drive_items di WHERE di.client_id=q.client_id AND di.kind='file' AND di.status='ok'
+       AND (di.quote_id=q.id OR (di.quote_id IS NULL AND di.opportunite_id=q.opportunite_id AND q.opportunite_id IS NOT NULL))
+       ORDER BY (di.quote_id=q.id) DESC, di.synced_at DESC LIMIT 1) AS drive_url
+    FROM quotes q JOIN clients c ON q.client_id = c.id ORDER BY q.created_at DESC, q.id DESC`));
 });
 
 app.post('/api/quotes', auth, async (req, res) => {
