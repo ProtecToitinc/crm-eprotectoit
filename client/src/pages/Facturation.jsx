@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Receipt, Plus } from 'lucide-react';
+import { Receipt, Plus, Trash2 } from 'lucide-react';
 import { useUI } from '../context/UIContext';
 import { INVOICE_STATUSES, money, soft } from '../constants';
 import { api } from '../api';
@@ -46,6 +46,7 @@ export default function Facturation() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
   const [sort, setSort] = useStoredChoice('crm_invoices_sort', 'recent', SORTS.map(s => s.value));
   const { refreshKey, openDeal, bumpRefresh, showToast } = useUI();
 
@@ -64,6 +65,21 @@ export default function Facturation() {
       bumpRefresh();
     } catch (e) {
       showToast(e.message || 'Impossible de changer le statut');
+    }
+  }
+
+  async function deleteInvoice(inv) {
+    if (!window.confirm(`Supprimer définitivement la facture ${inv.reference} de ${fullName(inv)} ? Le client et sa soumission seront conservés.`)) return;
+    setDeletingId(inv.id);
+    try {
+      await api.invoices.delete(inv.id);
+      load();
+      bumpRefresh();
+      showToast('Facture supprimée');
+    } catch (e) {
+      showToast(e.message || 'Suppression impossible');
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -135,9 +151,9 @@ export default function Facturation() {
 
         {invoices && invoices.length > 0 && (
           <div style={{ overflowX: 'auto' }}>
-            <div style={{ minWidth: 640 }}>
+            <div style={{ minWidth: 760 }}>
               <div className="invoices-row" style={{ padding: '11px 20px', fontSize: 10.5, fontWeight: 700, letterSpacing: '.05em', color: 'var(--fg-faint)', borderBottom: '1px solid var(--border)', textTransform: 'uppercase' }}>
-                <div>Facture</div><div>Client</div><div>Montant</div><div>Statut</div><div>Échéance</div>
+                <div>Facture</div><div>Client</div><div>Montant</div><div>Statut</div><div>Échéance</div><div>Actions</div>
               </div>
               {sorted.map(inv => {
                 const stc = INVOICE_STATUSES[inv.statut] || INVOICE_STATUSES.en_attente;
@@ -156,6 +172,7 @@ export default function Facturation() {
                       </select>
                     </div>
                     <div style={{ color: late ? '#c4584f' : 'var(--fg-muted)', fontWeight: late ? 700 : 400 }}>{inv.date_echeance ? fmtDay(inv.date_echeance) : '—'}</div>
+                    <button type="button" disabled={deletingId === inv.id} onClick={() => deleteInvoice(inv)} aria-label={`Supprimer la facture ${inv.reference}`} title="Supprimer la facture" style={{ ...btnGhost, color: '#c4584f', justifySelf: 'start', opacity: deletingId === inv.id ? .5 : 1 }}><Trash2 size={15} /> Supprimer</button>
                   </div>
                 );
               })}
