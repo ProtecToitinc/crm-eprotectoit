@@ -88,50 +88,8 @@ export default function Integrations() {
         <button style={btnAccent} onClick={connectGoogle} disabled={!g?.configured}>{g?.connected ? 'Réautoriser Google (ajouter Drive et Gmail)' : 'Connecter Google'}</button>
       </Section>
 
-      <Section title="Google Drive → CRM">
-        <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 0 }}>Dernière synchronisation : <b>{when(st?.lastSync)}</b>. Synchronisation automatique (toutes les 5 min) : <b>{st?.autoEnabled ? 'activée' : 'désactivée'}</b>. {st?.lastError && <span style={{ color: '#c4584f' }}>{st.lastError}</span>}</p>
-        <div style={row}>
-          <button style={btnGhost} disabled={busy} onClick={() => sync(true)}>1. Aperçu (rien n’est modifié)</button>
-          <button style={btnGhost} disabled={busy || !preview?.ok || !preview?.dry} onClick={() => { if (window.confirm(`Appliquer : ${preview.created} création(s), ${preview.matched} rapprochement(s), ${preview.review} à valider. Une sauvegarde est conseillée avant (Sécurité et sauvegardes). Continuer?`)) sync(false); }}>2. Appliquer</button>
-          <button style={btnGhost} disabled={busy || (!st?.autoEnabled && (st?.review?.length > 0 || !st?.lastSync))} onClick={() => run(() => api.drive.setAuto(!st?.autoEnabled), st?.autoEnabled ? 'Synchronisation automatique désactivée' : 'Synchronisation automatique activée')}>{st?.autoEnabled ? 'Désactiver l’auto' : '3. Activer l’auto'}</button>
-          <button style={btnGhost} onClick={refreshAll}><RefreshCw size={15} /> Actualiser</button>
-        </div>
-        {progress && <p role="status" style={{ marginTop: 12, color: 'var(--accent)', fontWeight: 700 }}>Analyse en cours… {progress.done}/{progress.total} dossiers{progress.name ? ` (${progress.name})` : ''}. Tu peux laisser la page ouverte.</p>}
-        {preview && !progress && (
-          <div style={{ marginTop: 14 }}>
-            <strong>{preview.created} à créer · {preview.matched} rapprochés · {preview.review} à valider · {preview.ignored || 0} ignorés · {preview.unreadable || 0} illisibles · {preview.errors} erreurs</strong>
-            <details style={{ marginTop: 8 }}><summary style={{ cursor: 'pointer' }}>Voir le détail ({preview.details?.length || 0})</summary>
-              <div style={{ maxHeight: 360, overflow: 'auto', marginTop: 8 }}>
-                {preview.details?.filter(x => x.action !== 'rapproché' || x.plan?.length).map((x, i) => (
-                  <div key={i} style={{ padding: '7px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
-                    <b>{x.action}</b> — {x.name}{x.folder ? ` (${x.folder})` : ''} <span style={{ color: 'var(--fg-muted)' }}>{x.reason}</span>
-                    {x.plan?.length > 0 && <div style={{ color: 'var(--fg-muted)', fontSize: 12 }}>{x.plan.join(' · ')}</div>}
-                    {x.preview && <div style={{ color: 'var(--fg-faint)', fontSize: 12 }}>{[x.preview.prenom, x.preview.nom].filter(Boolean).join(' ')} · soumission #{x.preview.numero || '?'} · total {dollars2(x.preview.total)} · signé : {x.preview.signe ? 'oui' : 'non'}</div>}
-                  </div>))}
-              </div>
-            </details>
-          </div>
-        )}
-        {st?.review?.length > 0 && (
-          <div style={{ marginTop: 16 }}>
-            <h3 style={{ fontSize: 14, margin: '0 0 8px' }}>À valider ({st.review.length})</h3>
-            {st.review.map(x => (
-              <div key={x.drive_id} style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 12, marginBottom: 8 }}>
-                <b>{x.name}</b> {x.web_link && <a href={x.web_link} target="_blank" rel="noreferrer" style={{ fontSize: 12 }}>ouvrir dans Drive</a>}
-                <div style={{ fontSize: 12.5, color: x.status === 'erreur' ? '#c4584f' : 'var(--fg-muted)', margin: '3px 0 8px' }}>{x.message}{x.preview ? ` — contrat : ${[x.preview.prenom, x.preview.nom].filter(Boolean).join(' ')} · ${x.preview.telephone || 'sans téléphone'}` : ''}</div>
-                <div style={row}>
-                  <select style={{ ...inputStyle, width: 'auto', maxWidth: 260, height: 38 }} value={pick[x.drive_id] || ''} onChange={e => setPick(p => ({ ...p, [x.drive_id]: e.target.value }))} aria-label="Client à lier">
-                    <option value="">Lier à un client…</option>
-                    {st.clients.map(c => <option key={c.id} value={c.id}>{clientName(c)}</option>)}
-                  </select>
-                  <button style={btnGhost} disabled={busy || !pick[x.drive_id]} onClick={() => resolve(x.drive_id, 'lier', pick[x.drive_id])}>Lier</button>
-                  {/nouvelle version|nouvelle soumission ou mise/i.test(x.message || '') && <><button style={btnGhost} disabled={busy} onClick={() => resolve(x.drive_id, 'ajouter')}>Ajouter comme nouvelle soumission</button><button style={btnGhost} disabled={busy} onClick={() => resolve(x.drive_id, 'maj')}>Mettre à jour l’ancienne</button></>}
-                  {!/nouvelle version|nouvelle soumission ou mise/i.test(x.message || '') && <button style={btnGhost} disabled={busy} onClick={() => window.confirm('Créer un nouveau client pour cet élément?') && resolve(x.drive_id, 'creer')}>Créer un nouveau client</button>}
-                  <button style={btnGhost} disabled={busy} onClick={() => resolve(x.drive_id, 'ignorer')}>Ignorer</button>
-                </div>
-              </div>))}
-          </div>
-        )}
+      <Section title="Google Drive — consultation seulement">
+        <p style={{ fontSize: 13, color: 'var(--fg-muted)' }}>L'importation automatique des soumissions est désactivée pour éviter les doublons. Tu peux ajouter un PDF, un fichier Excel ou un autre document depuis la fiche de chaque client, dans « Soumissions du client ». Les anciens liens Drive restent disponibles.</p>
       </Section>
 
       <Section title="Meta Ads — leads">
