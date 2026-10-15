@@ -807,7 +807,7 @@ db.init().then(async () => {
     console.log(`CRM eProtectoIT démarré sur http://localhost:${PORT}`);
     if (process.env.DISABLE_JOBS !== '1') {
       // One-shot administrative Drive sync, opt-in through Railway. No OAuth token or client details logged.
-      if (process.env.CRM_DRIVE_ONESHOT === 'preview' || process.env.CRM_DRIVE_ONESHOT === 'import') {
+      if (process.env.CRM_DRIVE_ONESHOT === 'preview') {
         setTimeout(async () => {
           const mode = process.env.CRM_DRIVE_ONESHOT;
           try {
