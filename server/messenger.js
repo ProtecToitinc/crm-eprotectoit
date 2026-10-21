@@ -192,7 +192,7 @@ async function ensureConversation(psid, firstText) {
   const lead = await require('./leads').ingestLead(
     { id: `messenger:${psid}`, first_name: prenom, last_name: nom, phone_number: form.telephone, email: form.email,
       message: short(firstText, 1500), platform: 'messenger', campaign_name: 'Messenger (questionnaire)' },
-    { source: 'meta' });
+    { source: 'meta', quiet: true }); // un seul courriel par conversation : quand l'agent passe la main ou a tout recueilli
   await db.run('INSERT OR IGNORE INTO messenger_conversations (psid, lead_id, prenom, nom) VALUES (?,?,?,?)', [psid, lead.id, prenom, nom]);
   return db.get('SELECT * FROM messenger_conversations WHERE psid=?', [psid]);
 }
@@ -216,15 +216,8 @@ async function handleIncoming(psid, body, mid, t0 = Date.now()) {
     await leadNote(conv.lead_id, 'Le client a demandé de ne plus recevoir de messages (STOP).');
     return { stop: true };
   }
-  if (!['auto', 'termine'].includes(conv.etat)) {
-    // Un humain a la main : on ne répond pas, mais on prévient l'équipe (au plus une fois par 15 minutes).
-    const recent = conv.alerte_at && Date.now() - Date.parse(conv.alerte_at + 'Z') < 15 * 60 * 1000;
-    if (!recent) {
-      await db.run("UPDATE messenger_conversations SET alerte_at=datetime('now') WHERE id=?", [conv.id]);
-      await alert(`Messenger : ${text(conv.prenom) || 'un client'} a répondu`, `${text(conv.prenom)} ${text(conv.nom)} a écrit :\n« ${short(body, 500)} »\n\nConversation :\n${await transcript(conv.id)}`);
-    }
-    return { skipped: conv.etat };
-  }
+  // Un humain a la main : l'agent se tait, sans courriel (Facebook avertit déjà la page de chaque message).
+  if (!['auto', 'termine'].includes(conv.etat)) return { skipped: conv.etat };
 
   typing(psid);
   const history = (await db.all('SELECT sens, texte FROM messenger_messages WHERE conversation_id=? AND sens IN (\'in\',\'out\') ORDER BY id DESC LIMIT 14', [conv.id])).reverse();

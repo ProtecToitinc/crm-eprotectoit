@@ -81,6 +81,8 @@ test('messenger : webhook signé seulement, conversation et lead créés', async
     assert.equal(conv.prenom, 'Gaston');
     const lead = (await srv.call('GET', '/api/leads', { token })).data.find(l => l.id === conv.lead_id);
     assert.equal(lead.email, 'gasmo2012@example.com');
+    assert.equal(lead.notifie, 2, 'pas de courriel « nouveau lead » : un seul courriel quand l’agent passe la main');
+    assert.equal(lead.vu, 0, 'le lead reste marqué nouveau dans le CRM');
     const msgs = (await srv.call('GET', `/api/messenger/conversations/${conv.id}/messages`, { token })).data;
     assert.equal(msgs.filter(m => m.sens === 'in').length, 1, 'le doublon n’est pas enregistré deux fois');
 

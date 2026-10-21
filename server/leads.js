@@ -150,7 +150,8 @@ async function findDuplicate(l) {
   }
   return null;
 }
-async function ingestLead(input, { silent = false, source = 'webhook' } = {}) {
+/** `silent` : lead déjà traité (vu, aucun envoi). `quiet` : lead nouveau, mais sans courriel ni réponse automatique (l'appelant prévient l'équipe lui-même). */
+async function ingestLead(input, { silent = false, quiet = false, source = 'webhook' } = {}) {
   const l = input && input.source && input.donnees !== undefined ? input : normalize(input, source);
   const duplicate = await findDuplicate(l);
   if (duplicate) return { id: duplicate.id, duplicate: true, reason: duplicate.reason };
@@ -158,8 +159,8 @@ async function ingestLead(input, { silent = false, source = 'webhook' } = {}) {
   const fields = ['source', 'external_id', 'prenom', 'nom', 'email', 'telephone', 'adresse', 'ville', 'code_postal', 'message', 'campagne', 'ensemble', 'annonce', 'formulaire', 'form_name', 'plateforme', 'campaign_id', 'adset_id', 'ad_id', 'donnees', 'recu_at'];
   const vals = fields.map(f => l[f] ?? null);
   try {
-    const r = await db.run(`INSERT INTO leads (${fields.join(',')},statut,vu,client_id,notifie) VALUES (${fields.map(() => '?').join(',')},'nouveau',?,?,?)`, [...vals, silent ? 1 : 0, clientId, silent ? 2 : 0]);
-    if (!silent) {
+    const r = await db.run(`INSERT INTO leads (${fields.join(',')},statut,vu,client_id,notifie) VALUES (${fields.map(() => '?').join(',')},'nouveau',?,?,?)`, [...vals, silent ? 1 : 0, clientId, silent || quiet ? 2 : 0]);
+    if (!silent && !quiet) {
       await notifyLead(r.lastID);
       require('./autoreply').queue(r.lastID).catch(e => console.error('[reponse-auto]', e.message)); // sans attendre : le webhook répond tout de suite
     }
