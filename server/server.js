@@ -39,7 +39,8 @@ for (const method of ['get', 'post', 'put', 'delete']) {
 // Même origine seulement, sauf si CORS_ORIGIN liste explicitement d'autres origines.
 app.use(cors({ origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',').map(s => s.trim()) : false }));
 app.use(security.securityHeaders);
-app.use(express.json({ limit: '2mb' }));
+// Corps brut conservé seulement pour le webhook Messenger (vérification de la signature Meta).
+app.use(express.json({ limit: '2mb', verify: (req, res, buf) => { if (req.originalUrl.startsWith('/api/webhooks/messenger')) req.rawBody = buf; } }));
 app.use(express.urlencoded({ extended: false }));
 app.use((req, res, next) => (backup.isRestoring() && req.path.startsWith('/api/')
   ? res.status(503).json({ message: 'Restauration en cours, réessaie dans quelques secondes.' }) : next()));

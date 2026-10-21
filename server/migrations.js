@@ -43,6 +43,21 @@ async function migrate() {
   for (const [col, def] of [['campaign_id', 'TEXT'], ['adset_id', 'TEXT'], ['ad_id', 'TEXT'], ['form_name', 'TEXT'],
     ['dernier_contact', 'TEXT'], ['rappel_at', 'TEXT'], ['tentatives', 'INTEGER NOT NULL DEFAULT 0'],
     ['en_charge', 'TEXT'], ['en_charge_at', 'TEXT'], ['raison_perte', 'TEXT']]) await addColumn('leads', col, def);
+  // Réponse automatique aux leads (texto / courriel) et liste des désabonnés
+  for (const [col, def] of [['reponse_statut', 'TEXT'], ['reponse_canal', 'TEXT'], ['reponse_texte', 'TEXT'], ['reponse_at', 'TEXT'],
+    ['reponse_tentatives', 'INTEGER NOT NULL DEFAULT 0'], ['reponse_erreur', 'TEXT']]) await addColumn('leads', col, def);
+  await db.run('CREATE TABLE IF NOT EXISTS desabonnements (contact TEXT PRIMARY KEY, created_at TEXT DEFAULT CURRENT_TIMESTAMP)');
+  // Agent Messenger : conversations (une par personne) et messages (dédoublonnés par identifiant Meta)
+  await db.run(`CREATE TABLE IF NOT EXISTS messenger_conversations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, psid TEXT NOT NULL UNIQUE, lead_id INTEGER REFERENCES leads(id) ON DELETE SET NULL,
+    prenom TEXT DEFAULT '', nom TEXT DEFAULT '', adresse TEXT DEFAULT '', heure TEXT DEFAULT '',
+    etat TEXT NOT NULL DEFAULT 'auto', attendu TEXT DEFAULT '', escalade_raison TEXT, nb_echanges INTEGER NOT NULL DEFAULT 0,
+    premiere_reponse_ms INTEGER, last_in_at TEXT, last_out_at TEXT, alerte_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')))`);
+  await db.run(`CREATE TABLE IF NOT EXISTS messenger_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, conversation_id INTEGER NOT NULL REFERENCES messenger_conversations(id) ON DELETE CASCADE,
+    sens TEXT NOT NULL, texte TEXT DEFAULT '', mid TEXT UNIQUE, created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
+  await db.run('CREATE INDEX IF NOT EXISTS idx_messenger_messages_conv ON messenger_messages(conversation_id)');
   await db.run(`CREATE TABLE IF NOT EXISTS lead_notes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     lead_id INTEGER NOT NULL REFERENCES leads(id) ON DELETE CASCADE,

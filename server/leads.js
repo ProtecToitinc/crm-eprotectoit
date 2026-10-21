@@ -159,7 +159,10 @@ async function ingestLead(input, { silent = false, source = 'webhook' } = {}) {
   const vals = fields.map(f => l[f] ?? null);
   try {
     const r = await db.run(`INSERT INTO leads (${fields.join(',')},statut,vu,client_id,notifie) VALUES (${fields.map(() => '?').join(',')},'nouveau',?,?,?)`, [...vals, silent ? 1 : 0, clientId, silent ? 2 : 0]);
-    if (!silent) await notifyLead(r.lastID);
+    if (!silent) {
+      await notifyLead(r.lastID);
+      require('./autoreply').queue(r.lastID).catch(e => console.error('[reponse-auto]', e.message)); // sans attendre : le webhook répond tout de suite
+    }
     return { id: r.lastID, duplicate: false, client_id: clientId };
   } catch (e) {
     if (String(e.message).includes('UNIQUE')) {

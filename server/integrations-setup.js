@@ -9,6 +9,7 @@
 const db = require('./database');
 const google = require('./google');
 const leads = require('./leads');
+const autoreply = require('./autoreply');
 const drive = require('./drive');
 const { getSetting } = require('./lib');
 let started = false;
@@ -54,6 +55,8 @@ async function health() {
 function register(app, { auth }) {
   if (typeof auth !== 'function') throw new Error('Middleware auth requis');
   leads.register(app, { auth });
+  autoreply.register(app, { auth });
+  require('./messenger').register(app, { auth });
   drive.register(app, { auth });
   app.get('/api/health', auth, async (req, res) => res.json(await health()));
 }
@@ -70,6 +73,8 @@ function startJobs() {
   const every = (fn, interval, first) => { const t = setInterval(fn, interval); t.unref?.(); if (first) setTimeout(fn, first).unref?.(); };
   // Importation Drive désactivée : les soumissions sont ajoutées manuellement par client.
   // Ne pas relancer driveJob, même si l'ancien réglage était activé.
+  const replyJob = async () => { try { await autoreply.retryPending(); } catch (e) { console.error('[reponse-auto] tâche en erreur :', e.message); } };
+  every(replyJob, 60 * 1000, 45 * 1000);
   // Meta : un passage 30 s après le démarrage rattrape les leads arrivés pendant une interruption.
   every(metaJob, 3 * 60 * 1000, 30 * 1000);
   every(emailJob, 10 * 60 * 1000, 60 * 1000);
