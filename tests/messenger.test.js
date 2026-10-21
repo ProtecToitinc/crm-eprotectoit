@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const { startServer } = require('./helpers');
-const { scripted, validSignature, parseAI, isFormMessage, parseForm, STOP_RE } = require('../server/messenger');
+const { scripted, validSignature, parseAI, isFormMessage, parseForm, confirmation, STOP_RE } = require('../server/messenger');
 
 const FORM = 'Hello! I filled out your form and would like to know more about your business. Quel est l’état actuel de votre toiture ?: Perte de granules / bardeaux qui commencent à relever Dans combien de temps aimeriez-vous faire les travaux ?: Je veux seulement obtenir de l’information pour l’instant Full name: Gaston Morin Quel âge a votre toiture ?: 10 à 15 ans Phone number: (514) 250-4276 Email: gasmo2012@example.com';
 
@@ -36,6 +36,8 @@ test('messenger : script de secours (prénom, adresse, moment, superviseur)', ()
   assert.ok(STOP_RE.test('STOP') && !STOP_RE.test('stop de niaiser, je veux un prix'));
   assert.equal(parseAI('voici {"reponse":"Bonjour","escalade":true}').escalade, true);
   assert.equal(parseAI('pas de json'), null);
+  assert.match(confirmation('Julie Roy', 'vers 14 h', true), /^Parfait Julie, c'est noté : vers 14 h\. Je transfère votre demande et votre question à notre équipe/);
+  assert.match(scripted({ prenom: 'Julie', adresse: '12 rue X', heure: '', nb_echanges: 2 }, 'Combien?').reponse, /superviseur.*meilleur moment/);
   assert.equal(parseAI('```json\n{"réponse":"Bonjour","adresse":"12 rue X"}\n```').adresse, '12 rue X');
 });
 
@@ -85,6 +87,24 @@ test('messenger : webhook signé seulement, conversation et lead créés', async
     assert.equal(lead.vu, 0, 'le lead reste marqué nouveau dans le CRM');
     const msgs = (await srv.call('GET', `/api/messenger/conversations/${conv.id}/messages`, { token })).data;
     assert.equal(msgs.filter(m => m.sens === 'in').length, 1, 'le doublon n’est pas enregistré deux fois');
+
+    // Question en cours de route : l'agent continue jusqu'au moment, puis passe la main (une seule fois)
+    const state = async () => (await srv.call('GET', '/api/messenger', { token })).data.conversations.find(c => c.prenom === 'Julie');
+    const say = async (psid, i, t) => {
+      const before = (await state())?.nb_echanges ?? 0; // la conversation existe avec 0 échange avant la première réponse
+      const p = msg(psid, `q-${i}`, t);
+      assert.equal((await send(p, sign(p))).status, 200);
+      for (let k = 0; k < 40; k++) { await new Promise(r => setTimeout(r, 250)); const c = await state(); if (c && c.nb_echanges > before) return c; }
+      throw new Error(`pas de traitement pour « ${t} »`);
+    };
+    await say('psid-3', 1, 'J’ai rempli votre formulaire. Nom complet: Julie Roy Numéro de téléphone: 450 555-1234');
+    await say('psid-3', 2, '12 rue des Érables, Laval');
+    let c3 = await say('psid-3', 3, 'Combien ça coûte?');
+    assert.equal(c3.etat, 'auto', 'il manque le moment : l’agent continue');
+    assert.match(c3.escalade_raison, /Combien/);
+    c3 = await say('psid-3', 4, 'en soirée après 18 h');
+    assert.equal(c3.heure, 'en soirée après 18 h');
+    assert.equal(c3.etat, 'escalade', 'moment reçu : la question passe au superviseur');
 
     const apercu = (await srv.call('POST', '/api/messenger/apercu', { token, body: { prenom: 'Julie' } })).data;
     assert.match(apercu.reponse, /Julie/);
