@@ -22,7 +22,8 @@ async function startServer(extraEnv = {}) {
   child.stdout.on('data', d => { log += d; });
   child.stderr.on('data', d => { log += d; });
   const base = `http://127.0.0.1:${port}`;
-  for (let i = 0; i < 100; i++) {
+  // Jusqu'à ~60 s : sur certains postes Windows, le premier démarrage dépasse 15 s (antivirus sur la base temporaire).
+  for (let i = 0; i < 400; i++) {
     if (child.exitCode !== null) throw new Error('Serveur arrêté au démarrage :\n' + log);
     try { const r = await fetch(base + '/api/auth/verify', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }); if (r.ok) break; } catch { /* pas prêt */ }
     await new Promise(r => setTimeout(r, 150));
