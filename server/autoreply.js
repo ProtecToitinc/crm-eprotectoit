@@ -44,10 +44,10 @@ async function compose(lead, channel) {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST', signal: AbortSignal.timeout(15000),
       headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-      body: JSON.stringify({ model: process.env.REPONSE_MODEL || 'claude-haiku-5-5', max_tokens: 400, messages: [{ role: 'user', content: prompt }] })
+      body: JSON.stringify({ model: process.env.REPONSE_MODEL || 'claude-haiku-4-5-20251001', max_tokens: 400, messages: [{ role: 'user', content: prompt }] })
     });
     const d = await r.json().catch(() => ({}));
-    const out = text(d.content?.[0]?.text);
+    const out = text((Array.isArray(d.content) ? d.content : []).filter(b => b.type === 'text').map(b => b.text).join('\n'));
     if (!r.ok || !out) throw new Error(d.error?.message || `HTTP ${r.status}`);
     return { body: out.slice(0, maxChars + 100), ai: true };
   } catch (e) {
