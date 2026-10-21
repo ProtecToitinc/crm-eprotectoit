@@ -36,6 +36,7 @@ test('messenger : script de secours (prénom, adresse, moment, superviseur)', ()
   assert.ok(STOP_RE.test('STOP') && !STOP_RE.test('stop de niaiser, je veux un prix'));
   assert.equal(parseAI('voici {"reponse":"Bonjour","escalade":true}').escalade, true);
   assert.equal(parseAI('pas de json'), null);
+  assert.equal(parseAI('```json\n{"réponse":"Bonjour","adresse":"12 rue X"}\n```').adresse, '12 rue X');
 });
 
 test('messenger : webhook signé seulement, conversation et lead créés', async () => {
