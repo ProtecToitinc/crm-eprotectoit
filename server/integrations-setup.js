@@ -75,6 +75,8 @@ function startJobs() {
   // Ne pas relancer driveJob, même si l'ancien réglage était activé.
   const replyJob = async () => { try { await autoreply.retryPending(); } catch (e) { console.error('[reponse-auto] tâche en erreur :', e.message); } };
   every(replyJob, 60 * 1000, 45 * 1000);
+  const messengerJob = async () => { try { await require('./messenger').alertStalledQuestions(); } catch (e) { console.error('[messenger] tâche en erreur :', e.message); } };
+  every(messengerJob, 2 * 60 * 1000, 90 * 1000);
   // Meta : un passage 30 s après le démarrage rattrape les leads arrivés pendant une interruption.
   every(metaJob, 3 * 60 * 1000, 30 * 1000);
   every(emailJob, 10 * 60 * 1000, 60 * 1000);
