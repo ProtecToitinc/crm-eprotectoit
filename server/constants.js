@@ -1,5 +1,8 @@
 const STAGES = [
   { key: 'lead', label: 'Nouveau lead', short: 'Nouveau', hue: '#9aa0a6' },
+  { key: 'appel1', label: 'Appel 1 — sans réponse', short: 'Appel 1', hue: '#a8a06b' },
+  { key: 'appel2', label: 'Appel 2 — sans réponse', short: 'Appel 2', hue: '#b8996a' },
+  { key: 'appel3', label: 'Appel 3 — sans réponse', short: 'Appel 3', hue: '#c08a5a' },
   { key: 'soumission', label: 'Soumission envoyée', short: 'Soumission', hue: '#c8924a' },
   { key: 'rdv', label: 'Rendez-vous', short: 'RDV', hue: '#6b8cae' },
   { key: 'contrat', label: 'Contrat signé', short: 'Contrat', hue: '#b27a3e' },

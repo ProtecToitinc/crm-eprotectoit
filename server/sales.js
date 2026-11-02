@@ -295,7 +295,7 @@ function register(app, { auth, upload, uploadsDir }) {
       await addHistory(cur.client_id, 'chantier', `Chantier : ${cur.statut} → ${b.statut}`);
       if (cur.opportunite_id) {
         if (['termine', 'paye'].includes(b.statut)) await db.run("UPDATE opportunites SET etape='complete', updated_at=datetime('now') WHERE id=? AND etape<>'complete'", [cur.opportunite_id]);
-        else if (['planifie', 'en_cours'].includes(b.statut)) await db.run("UPDATE opportunites SET etape='contrat', updated_at=datetime('now') WHERE id=? AND etape IN ('lead','soumission','rdv')", [cur.opportunite_id]);
+        else if (['planifie', 'en_cours'].includes(b.statut)) await db.run("UPDATE opportunites SET etape='contrat', updated_at=datetime('now') WHERE id=? AND etape IN ('lead','appel1','appel2','appel3','soumission','rdv')", [cur.opportunite_id]);
       }
     }
     res.json({ ok: true });

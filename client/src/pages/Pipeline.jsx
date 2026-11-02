@@ -26,6 +26,9 @@ const COMPARE = {
   valeur: (a, b) => cmpValue(a.valeur, b.valeur, -1)
 };
 
+// Pas de réponse : le dossier avance d’un appel
+const NEXT_CALL = { lead: 'appel1', appel1: 'appel2', appel2: 'appel3' };
+
 export default function Pipeline() {
   const [opps, setOpps] = useState([]);
   const [loaded, setLoaded] = useState(false);
@@ -95,7 +98,7 @@ export default function Pipeline() {
             onDragOver={e => { e.preventDefault(); if (overKey !== c.key) setOverKey(c.key); }}
             onDrop={() => onDrop(c.key)}
             style={{
-              width: 288, flexShrink: 0, background: 'var(--surface-2)', borderRadius: 14, padding: 12,
+              width: 264, flexShrink: 0, background: 'var(--surface-2)', borderRadius: 14, padding: 12,
               border: `1px solid ${dragId != null && overKey === c.key ? c.hue : 'var(--border)'}`,
               boxShadow: dragId != null && overKey === c.key ? `0 0 0 2px ${soft(c.hue)}` : 'none'
             }}
@@ -141,6 +144,13 @@ export default function Pipeline() {
                       ) : <span />}
                       <span style={{ fontSize: 13.5, fontWeight: 800, whiteSpace: 'nowrap' }}>{money(d.valeur)}</span>
                     </div>
+                    {NEXT_CALL[d.etape] && (
+                      <button
+                        type="button"
+                        onClick={e => { e.stopPropagation(); moveTo(d, NEXT_CALL[d.etape]); }}
+                        style={{ ...inputStyle, height: 32, marginTop: 11, fontSize: 12, fontWeight: 700, cursor: 'pointer', color: '#c8924a' }}
+                      >Pas de réponse → {STAGE_MAP[NEXT_CALL[d.etape]].short}</button>
+                    )}
                     {stageMenu && (
                       <select
                         aria-label="Changer l’étape du dossier"

@@ -750,7 +750,7 @@ app.get('/api/stats', auth, async (req, res) => {
     db.get(`SELECT COUNT(*) as n FROM quotes WHERE statut IN ('brouillon','envoyee') AND created_at >= datetime('now','-7 days')`),
     db.get(`SELECT COUNT(*) as n FROM opportunites WHERE etape='contrat'`),
     db.get(`SELECT COUNT(*) as n FROM evenements WHERE type='projet' AND date_debut >= ?`, [today]),
-    db.get(`SELECT COUNT(*) as total FROM opportunites WHERE etape != 'lead' AND created_at >= datetime('now','-90 days')`),
+    db.get(`SELECT COUNT(*) as total FROM opportunites WHERE etape NOT IN ('lead','appel1','appel2','appel3') AND created_at >= datetime('now','-90 days')`),
     db.get(`SELECT COUNT(*) as complete FROM opportunites WHERE etape='complete' AND created_at >= datetime('now','-90 days')`),
     db.all(`SELECT a.*, c.nom, c.prenom, c.telephone FROM appels a JOIN clients c ON a.client_id = c.id
       WHERE a.a_rappeler = 1 AND a.rappel_fait = 0

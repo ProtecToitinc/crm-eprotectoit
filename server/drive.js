@@ -13,7 +13,7 @@ const ROOT = '1Xg_dEIz77yVxZQ20hfHXN4rd_uE7vLfN';
 const LEADS = '1eFQSjqzmzTseq31FJpp_D72mB2CUDr9S';
 const TEMPLATE = '1iixhLjIV2lTiCxc3DxIbtX-P76FebUk9';
 const TAXES = 1.14975; // TPS 5 % + TVQ 9,975 %
-const STAGE_ORDER = ['lead', 'soumission', 'rdv', 'contrat', 'complete'];
+const STAGE_ORDER = ['lead', 'appel1', 'appel2', 'appel3', 'soumission', 'rdv', 'contrat', 'complete'];
 
 const clean = v => String(v ?? '').trim();
 const normName = value => norm(clean(value)).replace(/[^a-z0-9]+/g, ' ').trim().replace(/\s+/g, ' ');
@@ -410,7 +410,7 @@ async function storeContract(run, file, folder, parsed, decision) {
     const update = {};
     const rank = stageRank(opp.etape);
     if (parsed.signe && rank >= 0 && rank < stageRank('contrat')) update.etape = 'contrat';
-    else if (rank === 0 && priced) update.etape = 'soumission';
+    else if (rank >= 0 && rank < stageRank('soumission') && priced) update.etape = 'soumission';
     if (force && parsed.numero && !hasNumero(opp.notes, parsed.numero)) update.notes = oppNotes;
     if (parsed.travaux != null && parsed.travaux > 0 && (force || opp.valeur == null || Number(opp.valeur) === 0 || (prior.travaux != null && Number(opp.valeur) === Number(prior.travaux) && Number(opp.valeur) !== parsed.travaux))) update.valeur = parsed.travaux;
     if (!opp.service) update.service = parsed.service;
