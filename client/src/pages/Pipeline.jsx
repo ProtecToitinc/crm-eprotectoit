@@ -26,11 +26,21 @@ const COMPARE = {
   valeur: (a, b) => cmpValue(a.valeur, b.valeur, -1)
 };
 
+// updated_at vient de SQLite (UTC, « AAAA-MM-JJ HH:MM:SS »)
+function daysSince(ts) {
+  if (!ts) return null;
+  const t = Date.parse(String(ts).replace(' ', 'T') + (String(ts).includes('Z') ? '' : 'Z'));
+  return Number.isFinite(t) ? Math.max(0, Math.floor((Date.now() - t) / 86400000)) : null;
+}
+// Jours sans mouvement avant d’alerter, par étape (rien pour contrat signé / complété)
+const STALE_DAYS = { lead: 2, soumission: 7, rdv: 5 };
+
 export default function Pipeline() {
   const [opps, setOpps] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState('');
   const { refreshKey, openDeal, bumpRefresh, showToast } = useUI();
+  const [query, setQuery] = useState('');
   const [dragId, setDragId] = useState(null);
   const [overKey, setOverKey] = useState(null);
   const [sort, setSort] = useStoredChoice('crm_sort_pipeline', 'recent', SORTS.map(s => s.value));
@@ -70,11 +80,26 @@ export default function Pipeline() {
     if (opp) moveTo(opp, stageKey);
   }
 
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return opps;
+    return opps.filter(o => [fullName(o), o.ville, o.service, o.titre].some(v => String(v || '').toLowerCase().includes(q)));
+  }, [opps, query]);
+
   const columns = useMemo(() => STAGES.map(st => {
-    const deals = opps.filter(o => o.etape === st.key).sort(COMPARE[sort] || COMPARE.recent);
+    const deals = filtered.filter(o => o.etape === st.key).sort(COMPARE[sort] || COMPARE.recent);
     const total = deals.reduce((a, d) => a + (d.valeur || 0), 0);
-    return { ...st, deals, count: deals.length, total: money(total) };
-  }), [opps, sort]);
+    const stale = deals.filter(d => STALE_DAYS[st.key] != null && (daysSince(d.updated_at) ?? 0) >= STALE_DAYS[st.key]).length;
+    return { ...st, deals, count: deals.length, total: money(total), stale };
+  }), [filtered, sort]);
+
+  // Conversion : dossiers rendus à contrat ou complétés sur l’ensemble
+  const summary = useMemo(() => {
+    const won = opps.filter(o => o.etape === 'contrat' || o.etape === 'complete');
+    const open = opps.filter(o => !['contrat', 'complete'].includes(o.etape));
+    const sum = l => l.reduce((a, d) => a + (d.valeur || 0), 0);
+    return { open: money(sum(open)), won: money(sum(won)), rate: opps.length ? Math.round(won.length / opps.length * 100) : 0 };
+  }, [opps]);
 
   return (
     <div className="fadein">
@@ -82,7 +107,22 @@ export default function Pipeline() {
         <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-muted)' }}>
           {opps.length} dossier{opps.length !== 1 ? 's' : ''}{stageMenu ? ' — changez l’étape avec le menu de chaque carte' : ' — glissez une carte pour changer son étape'}
         </div>
-        <SortSelect value={sort} onChange={setSort} options={SORTS} />
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <input
+            type="search"
+            aria-label="Filtrer le pipeline"
+            placeholder="Filtrer (nom, ville, service)…"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            style={{ ...inputStyle, height: 36, width: 220, fontSize: 13 }}
+          />
+          <SortSelect value={sort} onChange={setSort} options={SORTS} />
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', marginBottom: 14, fontSize: 12.5, fontWeight: 700, color: 'var(--fg-muted)' }}>
+        <span>En cours : <b style={{ color: 'var(--fg)' }}>{summary.open}</b></span>
+        <span>Signé / complété : <b style={{ color: 'var(--fg)' }}>{summary.won}</b></span>
+        <span>Conversion : <b style={{ color: 'var(--fg)' }}>{summary.rate} %</b></span>
       </div>
 
       {loadError && <div role="alert" style={{ marginBottom: 12, color: '#c4584f', fontSize: 13, fontWeight: 600 }}>{loadError}</div>}
@@ -105,11 +145,14 @@ export default function Pipeline() {
                 <span style={{ width: 9, height: 9, borderRadius: '50%', background: c.hue }} />
                 <span style={{ fontSize: 13, fontWeight: 800 }}>{c.short}</span>
                 <span style={{ fontSize: 12, color: 'var(--fg-faint)', fontWeight: 600 }}>{c.count}</span>
+                {c.stale > 0 && <span title={`${c.stale} dossier(s) sans mouvement depuis ${STALE_DAYS[c.key]} jours ou plus`} style={{ fontSize: 10.5, fontWeight: 800, color: '#c4584f' }}>⚠ {c.stale}</span>}
               </div>
               <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--fg-muted)' }}>{c.total}</div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minHeight: 60 }}>
               {c.deals.map(d => {
+                const age = daysSince(d.updated_at);
+                const isStale = STALE_DAYS[d.etape] != null && age != null && age >= STALE_DAYS[d.etape];
                 const sh = d.service ? SERVICE_HUE[d.service] || '#9aa0a6' : '#9aa0a6';
                 return (
                   <div
@@ -123,7 +166,7 @@ export default function Pipeline() {
                     onClick={() => openDeal(d.client_id)}
                     onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openDeal(d.client_id); } }}
                     style={{
-                      background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 11, padding: 13, cursor: 'pointer',
+                      background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 11, padding: 13, cursor: 'pointer', borderLeft: isStale ? '3px solid #c4584f' : '1px solid var(--border)',
                       boxShadow: '0 1px 2px rgba(0,0,0,.03)', opacity: dragId === d.id ? .5 : 1
                     }}
                   >
@@ -131,7 +174,10 @@ export default function Pipeline() {
                       <div style={{ fontSize: 13.5, fontWeight: 800, minWidth: 0, overflowWrap: 'anywhere' }}>{fullName(d) || 'Client sans nom'}</div>
                       <Avatar client={{ id: d.client_id, prenom: d.prenom, nom: d.nom }} size={28} />
                     </div>
-                    <div style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 3 }}>{d.ville || '—'}</div>
+                    <div style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 3, display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                      <span>{d.ville || '—'}</span>
+                      {age != null && <span title="Jours depuis la dernière modification" style={{ fontWeight: 700, color: isStale ? '#c4584f' : 'var(--fg-faint)' }}>{age} j</span>}
+                    </div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 12 }}>
                       {d.service ? (
                         <span style={{
