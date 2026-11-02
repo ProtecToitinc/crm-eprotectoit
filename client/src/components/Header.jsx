@@ -16,6 +16,7 @@ const ROUTE_SCREEN = {
   '/facturation': 'billing',
   '/notes': 'notes',
   '/appels': 'calls',
+  '/a-rappeler': 'callback',
   '/opportunites': 'leads',
   '/integrations': 'integrations',
   '/a-traiter': 'attention',

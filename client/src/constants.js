@@ -40,7 +40,8 @@ export const EVENT_TYPES = {
 export const CALL_DIRECTIONS = {
   entrant: { label: 'Appel reçu', pick: 'Le client a appelé', hue: '#5f9d5f' },
   sortant: { label: 'Appel fait', pick: 'J’ai appelé', hue: '#6b8cae' },
-  manque: { label: 'Appel manqué', pick: 'Appel manqué', hue: '#c4584f' }
+  manque: { label: 'Appel manqué', pick: 'Appel manqué', hue: '#c4584f' },
+  sans_reponse: { label: 'Sans réponse', pick: 'J’ai appelé, pas de réponse', hue: '#c8924a' }
 };
 
 export const AVATAR_PALETTE =['#c17a3f', '#6b8cae', '#5f9d5f', '#a86b8c', '#8a8580', '#b27a3e'];
@@ -76,6 +77,7 @@ export function titleFor(screen) {
     billing: ['Facturation', 'Factures, paiements et encaissements'],
     notes: ['Notes', 'Notes générales et notes par client'],
     calls: ['Appels', 'Journal des appels et rappels'],
+    callback: ['À rappeler', 'Clients à rejoindre : essai 1, 2, 3'],
     leads: ['Opportunités', 'Leads et demandes Meta Ads'],
     integrations: ['Intégrations', 'Google Drive, Meta Ads et courriels'],
     attention: ['À traiter', 'Ce qui demande ton attention maintenant'],

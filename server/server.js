@@ -566,8 +566,8 @@ app.delete('/api/notes/:id', auth, async (req, res) => {
 });
 
 // ---- APPELS (journal des appels, par client) ----
-const DIRECTIONS = ['entrant', 'sortant', 'manque'];
-const DIRECTION_LABEL = { entrant: 'Appel reçu', sortant: 'Appel fait', manque: 'Appel manqué' };
+const DIRECTIONS = ['entrant', 'sortant', 'manque', 'sans_reponse'];
+const DIRECTION_LABEL = { entrant: 'Appel reçu', sortant: 'Appel fait', manque: 'Appel manqué', sans_reponse: 'Sans réponse' };
 
 // Crée / met à jour / supprime l'événement « Rappeler » du calendrier lié à un appel
 async function syncRappelEvent(appel) {

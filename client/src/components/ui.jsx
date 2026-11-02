@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { X, Search, UserPlus, ArrowUpDown, Phone, PhoneIncoming, PhoneOutgoing, PhoneMissed } from 'lucide-react';
+import { X, Search, UserPlus, ArrowUpDown, Phone, PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneOff } from 'lucide-react';
 import { soft, initials, avatarColor, CALL_DIRECTIONS } from '../constants';
 import { matchClient, fullName } from '../lib/search';
 
@@ -58,7 +58,7 @@ export function Avatar({ client, size = 32 }) {
   );
 }
 
-const DIRECTION_ICON = { entrant: PhoneIncoming, sortant: PhoneOutgoing, manque: PhoneMissed };
+const DIRECTION_ICON = { entrant: PhoneIncoming, sortant: PhoneOutgoing, manque: PhoneMissed, sans_reponse: PhoneOff };
 
 export function DirectionIcon({ direction, size = 14 }) {
   const Icon = DIRECTION_ICON[direction] || Phone;

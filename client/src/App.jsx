@@ -14,6 +14,7 @@ import Soumissions from './pages/Soumissions';
 import Facturation from './pages/Facturation';
 import Notes from './pages/Notes';
 import Appels from './pages/Appels';
+import ARappeler from './pages/ARappeler';
 import Opportunites from './pages/Opportunites';
 import Integrations from './pages/Integrations';
 import ATraiter from './pages/ATraiter';
@@ -65,6 +66,7 @@ export default function App() {
             <Route path="/facturation" element={<Facturation />} />
             <Route path="/notes" element={<Notes />} />
             <Route path="/appels" element={<Appels />} />
+            <Route path="/a-rappeler" element={<ARappeler />} />
             <Route path="/opportunites" element={<Opportunites user={user} />} />
             <Route path="/a-traiter" element={<ATraiter />} />
             <Route path="/suivi-soumissions" element={<SuiviVentes />} />

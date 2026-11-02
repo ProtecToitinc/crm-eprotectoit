@@ -30,6 +30,7 @@ const FILTERS = [
   ['entrant', 'Reçus'],
   ['sortant', 'Faits'],
   ['manque', 'Manqués'],
+  ['sans_reponse', 'Sans réponse'],
   ['rappel', 'À rappeler']
 ];
 
