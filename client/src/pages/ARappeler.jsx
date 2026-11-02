@@ -24,11 +24,11 @@ function buildRows(calls) {
   for (const [id, list] of byClient) {
     list.sort((x, y) => stamp(y).localeCompare(stamp(x)));
     let essais = 0;
-    for (const a of list) {
-      if (a.direction === 'entrant' || a.direction === 'sortant') break;
-      if (a.direction === 'sans_reponse') essais += 1;
-    }
-    const rappels = list.filter(pending);
+    let contactIdx = list.findIndex(a => a.direction === 'entrant' || a.direction === 'sortant');
+    if (contactIdx < 0) contactIdx = list.length;
+    for (const a of list.slice(0, contactIdx)) if (a.direction === 'sans_reponse') essais += 1;
+    // Un rappel d’essai devient caduc quand le client a été joint depuis
+    const rappels = list.filter((a, i) => pending(a) && (a.direction !== 'sans_reponse' || i < contactIdx));
     if (!essais && !rappels.length) continue;
     const next = rappels.map(r => r.rappel_date).filter(Boolean).sort()[0] || null;
     const c = list[0];
