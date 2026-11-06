@@ -20,7 +20,7 @@ export const iconBtn = {
   width: 32, height: 32, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)',
   cursor: 'pointer', color: 'var(--fg-muted)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
 };
-export const cardStyle = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, boxShadow: 'var(--shadow)' };
+export const cardStyle = { background: 'var(--glass)', backdropFilter: 'blur(14px) saturate(140%)', WebkitBackdropFilter: 'blur(14px) saturate(140%)', border: '1px solid var(--border)', borderRadius: 14, boxShadow: 'var(--shadow)' };
 
 export function Field({ label, children, style }) {
   return (

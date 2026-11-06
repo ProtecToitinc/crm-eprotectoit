@@ -12,6 +12,7 @@ export default function Layout({ children, user, onLogout }) {
 
   return (
     <div className="crm-root" style={{ display: 'flex', minHeight: '100vh', background: 'var(--app-bg)', fontSize: 14 }}>
+      <div className="ambient" aria-hidden="true" />
       <Sidebar mobileOpen={mobileOpen} onCloseMobile={() => setMobileOpen(false)} user={user} onLogout={onLogout} />
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api';
+import { DrawPath } from './motion';
 
 const cash = value => new Intl.NumberFormat('fr-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 }).format(value || 0);
 const periods = [['semaine', 'Semaine'], ['mois', 'Mois'], ['annee', 'Année']];
@@ -67,8 +68,8 @@ export default function Performance() {
           {[34, 84, 134, 184].map((y, i) => <g key={y}><line x1="54" x2="584" y1={y} y2={y} stroke="var(--border)" strokeWidth="1" strokeDasharray="3 6"/><text x="44" y={y + 4} textAnchor="end" fontSize="11" fill="var(--fg-muted)">{cash(max * (3 - i) / 3)}</text></g>)}
           {graphPoints.length > 0 && <>
             <path d={curve(sold) + ' L 584 184 L 54 184 Z'} fill="url(#crm-chart-fill)" />
-            <path d={curve(sold)} fill="none" stroke="#819cb7" strokeWidth="2.5" strokeLinecap="round"/>
-            <path d={curve(paid)} fill="none" stroke="#5dbea0" strokeWidth="2.5" strokeLinecap="round"/>
+            <DrawPath key={'s' + period + points.length} d={curve(sold)} stroke="#819cb7" />
+            <DrawPath key={'p' + period + points.length} d={curve(paid)} stroke="#5dbea0" delay={0.15} />
           </>}
           {points.map((p, i) => <g key={p.key} onMouseEnter={() => setHovered(i)} onFocus={() => setHovered(i)} tabIndex="0" aria-label={p.label + ' : ' + cash(p.vendu) + ' vendus et ' + cash(p.encaisse) + ' encaissés'} style={{ outline: 'none' }}>
             <rect x={sold[i].x - 18} y="25" width="36" height="178" fill="transparent" />

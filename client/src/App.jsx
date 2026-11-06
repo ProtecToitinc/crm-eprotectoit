@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Motion, PageTransition } from './components/motion';
 import Login from './components/Login';
 import Layout from './components/Layout';
 import { ThemeProvider } from './context/ThemeContext';
@@ -25,6 +26,7 @@ import Parametres from './pages/Parametres';
 import { api } from './api';
 
 export default function App() {
+  const location = useLocation();
   const [auth, setAuth] = useState(null);
   const [user, setUser] = useState(() => { try { return localStorage.getItem('crm_user') || ''; } catch { return ''; } });
 
@@ -52,10 +54,12 @@ export default function App() {
   if (!auth) return <Login onLogin={name => { setUser(name); setAuth(true); }} />;
 
   return (
+    <Motion>
     <ThemeProvider>
       <UIProvider>
         <Layout user={user} onLogout={logout}>
-          <Routes>
+          <PageTransition id={location.pathname.split('/')[1] || 'accueil'}>
+          <Routes location={location}>
             <Route path="/" element={<Dashboard />} />
             <Route path="/clients" element={<Clients />} />
             <Route path="/clients/:id" element={<ClientDetail />} />
@@ -76,8 +80,10 @@ export default function App() {
             <Route path="/parametres" element={<Parametres />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
+          </PageTransition>
         </Layout>
       </UIProvider>
     </ThemeProvider>
+    </Motion>
   );
 }
