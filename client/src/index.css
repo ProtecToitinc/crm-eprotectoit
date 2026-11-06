@@ -19,10 +19,10 @@
   --shadow: 0 1px 2px rgba(20, 16, 10, 0.04), 0 10px 28px rgba(20, 16, 10, 0.05);
   --glass: rgba(255, 255, 255, 0.55);
   --glass-2: rgba(255, 255, 255, 0.45);
-  --sidebar-glass: rgba(10, 24, 36, 0.78);
-  --app-grad: radial-gradient(70vmax 55vmax at 12% 8%, rgba(76, 190, 232, 0.42), transparent 60%), radial-gradient(60vmax 50vmax at 92% 90%, rgba(60, 130, 230, 0.30), transparent 60%), linear-gradient(160deg, #e9f4f9, #d6e9f2 55%, #e4eff6);
-  --glow-a: rgba(80, 200, 240, 0.25);
-  --glow-b: rgba(93, 190, 160, 0.2);
+  --sidebar-glass: rgba(10, 10, 12, 0.88);
+  --app-grad: radial-gradient(60vmax 45vmax at 10% 5%, rgba(193, 122, 63, 0.16), transparent 60%), linear-gradient(160deg, #f6f3ee, #ece7df 55%, #f3efe9);
+  --glow-a: rgba(193, 122, 63, 0.14);
+  --glow-b: rgba(255, 255, 255, 0.4);
 }
 
 [data-theme='dark'] {
@@ -43,10 +43,10 @@
   --glass: rgba(255, 255, 255, 0.07);
   --border: rgba(255, 255, 255, 0.13);
   --glass-2: rgba(255, 255, 255, 0.05);
-  --sidebar-glass: rgba(6, 18, 28, 0.62);
-  --app-grad: radial-gradient(70vmax 55vmax at 12% 8%, rgba(40, 150, 190, 0.5), transparent 60%), radial-gradient(60vmax 50vmax at 92% 90%, rgba(40, 90, 200, 0.4), transparent 60%), linear-gradient(160deg, #061821, #0a2c3d 55%, #08202f);
-  --glow-a: rgba(80, 200, 240, 0.22);
-  --glow-b: rgba(60, 170, 200, 0.2);
+  --sidebar-glass: rgba(10, 10, 12, 0.7);
+  --app-grad: radial-gradient(60vmax 45vmax at 10% 5%, rgba(207, 138, 72, 0.13), transparent 60%), radial-gradient(55vmax 45vmax at 95% 95%, rgba(255, 255, 255, 0.05), transparent 60%), linear-gradient(160deg, #060607, #0c0c0e 55%, #08080a);
+  --glow-a: rgba(207, 138, 72, 0.12);
+  --glow-b: rgba(255, 255, 255, 0.05);
 }
 
 * { box-sizing: border-box; }

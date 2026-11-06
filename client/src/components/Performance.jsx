@@ -51,8 +51,8 @@ export default function Performance() {
     {error && <p role="alert" style={{ color: '#c4584f' }}>{error}</p>}
     <div style={{ marginTop: 22, display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
       <div style={{ display: 'flex', gap: 18, fontSize: 12, color: 'var(--fg-muted)', fontWeight: 700 }}>
-        <span><span style={{ background: '#819cb7', display: 'inline-block', width: 9, height: 9, borderRadius: 20, marginRight: 7 }}/> Ventes</span>
-        <span><span style={{ background: '#5dbea0', display: 'inline-block', width: 9, height: 9, borderRadius: 20, marginRight: 7 }}/> Encaissé</span>
+        <span><span style={{ background: '#cf8a48', display: 'inline-block', width: 9, height: 9, borderRadius: 20, marginRight: 7 }}/> Ventes</span>
+        <span><span style={{ background: '#ece9e3', display: 'inline-block', width: 9, height: 9, borderRadius: 20, marginRight: 7 }}/> Encaissé</span>
       </div>
       {active !== null && <span style={{ color: 'var(--fg)', fontSize: 12, fontWeight: 750 }}>{points[active].label} · {cash(points[active].vendu)} vendus · {cash(points[active].encaisse)} encaissés</span>}
     </div>
@@ -60,7 +60,7 @@ export default function Performance() {
     {!points.length ? <p style={{ padding: '28px 0', color: 'var(--fg-muted)', fontSize: 13 }}>Aucune vente ni facture payée sur cette période.</p> :
       <div style={{ marginTop: 10, border: '1px solid var(--border)', background: 'var(--glass-2)', borderRadius: 14, padding: '18px 12px 10px' }}>
         <BarChart points={points} cash={cash} />
-        <div style={{ fontSize: 11, color: 'var(--fg-muted)', marginTop: 2 }}>Passe sur une barre pour voir les montants (bleu : vendu, vert : encaissé). Les périodes sans transactions ne sont pas encore représentées.</div>
+        <div style={{ fontSize: 11, color: 'var(--fg-muted)', marginTop: 2 }}>Passe sur une barre pour voir les montants (orange : vendu, blanc : encaissé). Les périodes sans transactions ne sont pas encore représentées.</div>
       </div>}
 
     <p style={{ margin: '15px 0 0', fontSize: 11, color: 'var(--fg-muted)' }}>Les montants proviennent des soumissions acceptées et des factures payées (taxes possiblement incluses). Les dates utilisées sont celles de la dernière modification des statuts. Pour calculer le profit, remplir les coûts dans la rentabilité de chaque chantier.</p>

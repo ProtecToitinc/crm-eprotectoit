@@ -6,7 +6,7 @@ const ease = [0.22, 1, 0.36, 1];
 const short = v => (v >= 1000 ? `${Math.round(v / 100) / 10} k` : String(Math.round(v)));
 
 // Graphique à barres : les barres poussent l'une après l'autre ; la dernière est mise en valeur
-export function BarChart({ points, cash, colors = ['#5cc8ee', '#5dbea0'], labels = ['Vendu', 'Encaissé'] }) {
+export function BarChart({ points, cash, colors = ['#cf8a48', '#ece9e3'], labels = ['Vendu', 'Encaissé'] }) {
   const [hov, setHov] = useState(null);
   const W = 640, H = 235, left = 54, right = 600, base = 184, top = 30;
   const max = Math.max(1, ...points.map(p => Math.max(p.vendu, p.encaisse)));
