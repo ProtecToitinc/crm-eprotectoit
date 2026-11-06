@@ -10,8 +10,8 @@ export function Motion({ children }) {
 export function PageTransition({ id, children }) {
   return (
     <AnimatePresence mode="wait" initial={false}>
-      <motion.div key={id} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -6, transition: { duration: 0.12 } }} transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}>
+      <motion.div key={id} initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -6, transition: { duration: 0.12 } }} transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}>
         {children}
       </motion.div>
     </AnimatePresence>
@@ -19,8 +19,8 @@ export function PageTransition({ id, children }) {
 }
 
 // Les enfants apparaissent l'un après l'autre
-const container = { hidden: {}, show: { transition: { staggerChildren: 0.07, delayChildren: 0.04 } } };
-const item = { hidden: { opacity: 0, y: 18, scale: 0.98 }, show: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } } };
+const container = { hidden: {}, show: { transition: { staggerChildren: 0.11, delayChildren: 0.05 } } };
+const item = { hidden: { opacity: 0, y: 38, scale: 0.94 }, show: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } } };
 export function Stagger({ children, style, className }) {
   return <motion.div variants={container} initial="hidden" animate="show" style={style} className={className}>{children}</motion.div>;
 }

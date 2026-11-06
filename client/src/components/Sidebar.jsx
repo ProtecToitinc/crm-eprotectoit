@@ -122,9 +122,9 @@ export default function Sidebar({ mobileOpen, onCloseMobile, user, onLogout }) {
       <aside
         className="hidden md:flex"
         style={{
-          width: 250, flex: 'none', background: 'var(--sidebar-bg)',
-          borderRight: '1px solid var(--sidebar-border)', flexDirection: 'column',
-          padding: '22px 16px 16px', gap: 6, position: 'sticky', top: 0, height: '100vh',
+          width: 250, flex: 'none', background: 'var(--sidebar-glass)', backdropFilter: 'blur(22px) saturate(150%)', WebkitBackdropFilter: 'blur(22px) saturate(150%)',
+          border: '1px solid var(--sidebar-border)', borderRadius: 24, margin: 14, flexDirection: 'column', boxShadow: 'var(--shadow)',
+          padding: '22px 16px 16px', gap: 6, position: 'sticky', top: 14, height: 'calc(100vh - 28px)',
           overflowY: 'auto'
         }}
       >

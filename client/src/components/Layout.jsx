@@ -11,7 +11,7 @@ export default function Layout({ children, user, onLogout }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <div className="crm-root" style={{ display: 'flex', minHeight: '100vh', background: 'var(--app-bg)', fontSize: 14 }}>
+    <div className="crm-root" style={{ display: 'flex', minHeight: '100vh', fontSize: 14 }}>
       <div className="ambient" aria-hidden="true" />
       <Sidebar mobileOpen={mobileOpen} onCloseMobile={() => setMobileOpen(false)} user={user} onLogout={onLogout} />
 
