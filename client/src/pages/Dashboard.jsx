@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Phone, Check, ArrowUpRight, BellRing, Target, FileText, HardHat } from 'lucide-react';
+import { Phone, Check, ArrowUpRight, BellRing, Target, FileText, HardHat, Wallet, Percent, PhoneCall } from 'lucide-react';
+import { Donut } from '../components/charts';
 import { useUI } from '../context/UIContext';
 import { STAGES, SERVICE_HUE, money } from '../constants';
 import { api } from '../api';
@@ -38,7 +39,7 @@ export default function Dashboard() {
   if (!stats) {
     return error
       ? <div role="alert" style={{ color: '#c4584f', fontSize: 13.5, fontWeight: 600 }}>{error}</div>
-      : <div style={{ color: 'var(--fg-muted)', fontSize: 13.5 }}>Chargement…</div>;
+      : <div role="status" aria-label="Chargement" style={{ display: 'grid', gap: 16 }}>{[120, 260, 120].map((h, i) => <div key={i} className="shimmer" style={{ height: h, borderRadius: 18 }} />)}</div>;
   }
 
   const parEtape = stats.parEtape || [];
@@ -58,16 +59,23 @@ export default function Dashboard() {
   const nbRappels = stats.nbRappels || 0;
 
   const kpis = [
-    { label: 'Revenus du mois', value: money(stats.revenuMois), delta: fmtDelta(stats.revenuMoisDelta), deltaColor: stats.revenuMoisDelta >= 0 ? '#5f9d5f' : '#c4584f', sub: 'vs mois dernier' },
-    { label: 'Soumissions actives', value: String(stats.quotesActives), delta: `+${stats.quotesActivesSemaine}`, deltaColor: '#5f9d5f', sub: 'cette semaine' },
-    { label: 'Projets en cours', value: String(stats.projetsEnCours), delta: `${stats.evenementsProjetsAvenir} à venir`, deltaColor: 'var(--accent)', sub: 'sur le terrain' },
-    { label: 'Taux de conversion', value: `${stats.tauxConversion} %`, delta: '90 jours', deltaColor: '#5f9d5f', sub: 'lead → complété' },
-    { label: 'Appels (7 jours)', value: String(stats.appelsSemaine || 0), delta: `${nbRappels} à rappeler`, deltaColor: nbRappels > 0 ? '#c8924a' : '#5f9d5f', sub: 'en attente' }
+    { icon: Wallet, label: 'Revenus du mois', value: money(stats.revenuMois), delta: fmtDelta(stats.revenuMoisDelta), deltaColor: stats.revenuMoisDelta >= 0 ? '#5f9d5f' : '#c4584f', sub: 'vs mois dernier' },
+    { icon: FileText, label: 'Soumissions actives', value: String(stats.quotesActives), delta: `+${stats.quotesActivesSemaine}`, deltaColor: '#5f9d5f', sub: 'cette semaine' },
+    { icon: HardHat, label: 'Projets en cours', value: String(stats.projetsEnCours), delta: `${stats.evenementsProjetsAvenir} à venir`, deltaColor: 'var(--accent)', sub: 'sur le terrain' },
+    { icon: Percent, label: 'Taux de conversion', value: `${stats.tauxConversion} %`, delta: '90 jours', deltaColor: '#5f9d5f', sub: 'lead → complété' },
+    { icon: PhoneCall, label: 'Appels (7 jours)', value: String(stats.appelsSemaine || 0), delta: `${nbRappels} à rappeler`, deltaColor: nbRappels > 0 ? '#c8924a' : '#5f9d5f', sub: 'en attente' }
   ];
 
   return (
     <div className="fadein">
       <Meteo />
+      <div className="dash-top">
+        <Performance />
+        <Card title="Répartition des services">
+          {services.length === 0 && <Empty text="Aucune donnée de service" />}
+          {services.length > 0 && <Donut items={stats.servicesRows.map(s => ({ name: s.service, value: s.total, hue: SERVICE_HUE[s.service] || '#9aa0a6' }))} total={stats.servicesRows.reduce((t, s) => t + s.total, 0)} centerLabel="Total vendu" format={money} />}
+        </Card>
+      </div>
       <section style={{ marginBottom: 20, padding: '20px 22px', borderRadius: 16, border: '1px solid var(--border)', background: 'var(--surface)', boxShadow: 'var(--shadow)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
           <div>
@@ -91,19 +99,20 @@ export default function Dashboard() {
           ))}
         </div>
       </section>
-      <Stagger className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
+      <Stagger className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', marginBottom: 20 }}>
         {kpis.map((k, i) => (
-          <Rise key={i} style={{ background: 'var(--glass)', backdropFilter: 'blur(14px) saturate(140%)', WebkitBackdropFilter: 'blur(14px) saturate(140%)', border: '1px solid var(--border)', borderRadius: 14, padding: '18px 20px', boxShadow: 'var(--shadow)' }}>
-            <div style={{ fontSize: 12.5, color: 'var(--fg-muted)', fontWeight: 600 }}>{k.label}</div>
-            <div style={{ fontSize: 27, fontWeight: 800, letterSpacing: '-.02em', marginTop: 9 }}><CountUp value={k.value} /></div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 9, fontSize: 12, fontWeight: 700, color: k.deltaColor, flexWrap: 'wrap' }}>
-              {k.delta}<span style={{ color: 'var(--fg-faint)', fontWeight: 500 }}>· {k.sub}</span>
+          <Rise key={i} style={{ background: 'var(--glass)', backdropFilter: 'blur(18px) saturate(150%)', WebkitBackdropFilter: 'blur(18px) saturate(150%)', border: '1px solid var(--border)', borderRadius: 20, padding: '18px 20px', boxShadow: 'var(--shadow)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <span style={{ width: 38, height: 38, borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'color-mix(in srgb, var(--accent) 18%, transparent)', color: 'var(--accent)', border: '1px solid color-mix(in srgb, var(--accent) 35%, transparent)' }}><k.icon size={18} /></span>
+              <span style={{ fontSize: 11.5, fontWeight: 800, color: k.deltaColor, background: 'var(--surface-2)', borderRadius: 999, padding: '3px 9px', whiteSpace: 'nowrap' }}>{k.delta}</span>
             </div>
+            <div style={{ fontSize: 27, fontWeight: 800, letterSpacing: '-.02em', marginTop: 14 }}><CountUp value={k.value} /></div>
+            <div style={{ fontSize: 12.5, color: 'var(--fg-muted)', fontWeight: 600, marginTop: 2 }}>{k.label}</div>
+            <div style={{ marginTop: 6, fontSize: 11.5, color: 'var(--fg-faint)', fontWeight: 500 }}>{k.sub}</div>
           </Rise>
         ))}
       </Stagger>
 
-      <Performance />
 
       <div className="dash-grid" style={{ marginTop: 16 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
@@ -179,21 +188,6 @@ export default function Dashboard() {
               );
             })}
           </Card>
-
-          <Card title="Répartition des services">
-            {services.length === 0 && <Empty text="Aucune donnée de service" />}
-            {services.map(s => (
-              <div key={s.name} style={{ marginBottom: 13 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, marginBottom: 6 }}>
-                  <span style={{ fontWeight: 700 }}>{s.name}</span>
-                  <span style={{ color: 'var(--fg-muted)', fontWeight: 600 }}>{s.value}</span>
-                </div>
-                <div style={{ height: 7, background: 'var(--surface-2)', borderRadius: 5, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: s.pct, background: s.hue, borderRadius: 5 }} />
-                </div>
-              </div>
-            ))}
-          </Card>
         </div>
       </div>
     </div>
@@ -202,7 +196,7 @@ export default function Dashboard() {
 
 function Card({ title, link, onLink, children }) {
   return (
-    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 20, boxShadow: 'var(--shadow)' }}>
+    <div style={{ background: 'var(--glass)', backdropFilter: 'blur(18px) saturate(150%)', WebkitBackdropFilter: 'blur(18px) saturate(150%)', border: '1px solid var(--border)', borderRadius: 20, padding: 20, boxShadow: 'var(--shadow)', minWidth: 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, gap: 10 }}>
         <div style={{ fontSize: 15, fontWeight: 800 }}>{title}</div>
         {link && <button className="linkbtn" onClick={onLink} style={{ border: 'none', background: 'transparent', color: 'var(--fg-muted)', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>{link}</button>}

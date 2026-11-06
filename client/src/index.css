@@ -17,9 +17,12 @@
   --accent: #c17a3f;
   --accent-fg: #ffffff;
   --shadow: 0 1px 2px rgba(20, 16, 10, 0.04), 0 10px 28px rgba(20, 16, 10, 0.05);
-  --glass: rgba(255, 255, 255, 0.72);
-  --glow-a: rgba(193, 122, 63, 0.16);
-  --glow-b: rgba(93, 190, 160, 0.14);
+  --glass: rgba(255, 255, 255, 0.55);
+  --glass-2: rgba(255, 255, 255, 0.45);
+  --sidebar-glass: rgba(10, 10, 12, 0.88);
+  --app-grad: radial-gradient(60vmax 45vmax at 10% 5%, rgba(193, 122, 63, 0.16), transparent 60%), linear-gradient(160deg, #f6f3ee, #ece7df 55%, #f3efe9);
+  --glow-a: rgba(193, 122, 63, 0.14);
+  --glow-b: rgba(255, 255, 255, 0.4);
 }
 
 [data-theme='dark'] {
@@ -37,9 +40,13 @@
   --accent: #cf8a48;
   --accent-fg: #14110c;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 34px rgba(0, 0, 0, 0.4);
-  --glass: rgba(26, 26, 30, 0.6);
-  --glow-a: rgba(207, 138, 72, 0.16);
-  --glow-b: rgba(70, 160, 170, 0.15);
+  --glass: rgba(255, 255, 255, 0.07);
+  --border: rgba(255, 255, 255, 0.13);
+  --glass-2: rgba(255, 255, 255, 0.05);
+  --sidebar-glass: rgba(10, 10, 12, 0.7);
+  --app-grad: radial-gradient(60vmax 45vmax at 10% 5%, rgba(207, 138, 72, 0.13), transparent 60%), radial-gradient(55vmax 45vmax at 95% 95%, rgba(255, 255, 255, 0.05), transparent 60%), linear-gradient(160deg, #060607, #0c0c0e 55%, #08080a);
+  --glow-a: rgba(207, 138, 72, 0.12);
+  --glow-b: rgba(255, 255, 255, 0.05);
 }
 
 * { box-sizing: border-box; }
@@ -145,3 +152,8 @@ main article:hover, .lift:hover { transform: translateY(-3px); border-color: col
   .ambient::before, .ambient::after, .shimmer::after { animation: none; }
   main article:hover, .lift:hover { transform: none; }
 }
+
+/* fond « aurore » bleu-turquoise derrière les panneaux en verre */
+.crm-root { background: var(--app-grad), var(--app-bg); background-attachment: fixed; }
+.dash-top { display: grid; grid-template-columns: 1.7fr 1fr; gap: 16px; margin-bottom: 20px; }
+@media (max-width: 900px) { .dash-top { grid-template-columns: 1fr; } }
