@@ -6,6 +6,7 @@ import { STAGES, SERVICE_HUE, money } from '../constants';
 import { api } from '../api';
 import Performance from '../components/Performance';
 import Meteo from '../components/Meteo';
+import { Stagger, Rise, CountUp } from '../components/motion';
 import { parseDay, daysFromToday, relativeDay, timeAgo } from '../lib/dates';
 import { telHref, fullName } from '../lib/search';
 import { iconBtn } from '../components/ui';
@@ -90,17 +91,17 @@ export default function Dashboard() {
           ))}
         </div>
       </section>
-      <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
+      <Stagger className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
         {kpis.map((k, i) => (
-          <div key={i} className="kard" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '18px 20px', boxShadow: 'var(--shadow)' }}>
+          <Rise key={i} style={{ background: 'var(--glass)', backdropFilter: 'blur(14px) saturate(140%)', WebkitBackdropFilter: 'blur(14px) saturate(140%)', border: '1px solid var(--border)', borderRadius: 14, padding: '18px 20px', boxShadow: 'var(--shadow)' }}>
             <div style={{ fontSize: 12.5, color: 'var(--fg-muted)', fontWeight: 600 }}>{k.label}</div>
-            <div style={{ fontSize: 27, fontWeight: 800, letterSpacing: '-.02em', marginTop: 9 }}>{k.value}</div>
+            <div style={{ fontSize: 27, fontWeight: 800, letterSpacing: '-.02em', marginTop: 9 }}><CountUp value={k.value} /></div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 9, fontSize: 12, fontWeight: 700, color: k.deltaColor, flexWrap: 'wrap' }}>
               {k.delta}<span style={{ color: 'var(--fg-faint)', fontWeight: 500 }}>· {k.sub}</span>
             </div>
-          </div>
+          </Rise>
         ))}
-      </div>
+      </Stagger>
 
       <Performance />
 

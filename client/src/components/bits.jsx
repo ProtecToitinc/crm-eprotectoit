@@ -3,6 +3,7 @@ import { Phone, Trash2, X } from 'lucide-react';
 import { cardStyle, btnAccent } from './ui';
 import { soft } from '../constants';
 import { telHref } from '../lib/search';
+import { CountUp } from './motion';
 
 // Chargement d'une ressource avec erreur lisible et rechargement
 export function useLoad(fn, deps = []) {
@@ -29,9 +30,9 @@ export function Pill({ hue = '#9aa0a6', children, style }) {
 
 export function Stat({ label, value, hint, hue }) {
   return (
-    <div style={{ ...cardStyle, padding: '14px 16px', minWidth: 0 }}>
+    <div className="lift" style={{ ...cardStyle, padding: '14px 16px', minWidth: 0 }}>
       <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg-muted)' }}>{label}</div>
-      <div style={{ fontSize: 24, fontWeight: 800, marginTop: 4, color: hue || 'var(--fg)' }}>{value}</div>
+      <div style={{ fontSize: 24, fontWeight: 800, marginTop: 4, color: hue || 'var(--fg)' }}><CountUp value={value} /></div>
       {hint && <div style={{ fontSize: 11.5, color: 'var(--fg-faint)', marginTop: 2 }}>{hint}</div>}
     </div>
   );
@@ -54,7 +55,7 @@ export function Empty({ children }) {
 }
 
 export function Loading() {
-  return <div style={{ color: 'var(--fg-muted)', padding: 20 }}>Chargement…</div>;
+  return <div role="status" aria-label="Chargement" style={{ padding: 20, display: 'grid', gap: 10 }}>{[90, 70, 80].map((w, i) => <div key={i} className="shimmer" style={{ height: 18, width: w + '%' }} />)}</div>;
 }
 
 // Mode « sélection » : cocher des éléments puis agir sur plusieurs à la fois

@@ -5,6 +5,7 @@ import { api } from '../api';
 import { cardStyle, inputStyle, btnGhost } from './ui';
 import { useLoad, Pill } from './bits';
 import { fmtDay } from '../lib/dates';
+import { Stagger, Rise } from './motion';
 
 export const VERDICT = { bon: ['Bon pour travailler', '#5f9d5f'], moyen: ['Risque', '#c8924a'], mauvais: ['À reporter?', '#c4584f'] };
 const dayName = d => new Date(`${d}T12:00:00`).toLocaleDateString('fr-CA', { weekday: 'short', day: 'numeric' });
@@ -47,19 +48,19 @@ export default function Meteo() {
       </div>
       {err && <div style={{ color: '#c4584f', fontSize: 13, marginBottom: 8 }}>{err}</div>}
       {data && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(86px, 1fr))', gap: 8 }}>
+        <Stagger key={data.lieu + data.jours[0]?.date} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(86px, 1fr))', gap: 8 }}>
           {data.jours.slice(0, 7).map((j, i) => {
             const [, hue] = VERDICT[j.verdict];
             return (
-              <div key={j.date} title={`${j.label}${j.raisons.length ? ' — ' + j.raisons.join(' · ') : ''}`} style={{ border: '1px solid var(--border)', borderTop: `3px solid ${hue}`, borderRadius: 10, padding: '8px 8px', textAlign: 'center', fontSize: 12 }}>
+              <Rise key={j.date} title={`${j.label}${j.raisons.length ? ' — ' + j.raisons.join(' · ') : ''}`} style={{ border: '1px solid var(--border)', borderTop: `3px solid ${hue}`, borderRadius: 10, padding: '8px 8px', textAlign: 'center', fontSize: 12 }}>
                 <div style={{ fontWeight: 800 }}>{i === 0 ? 'Aujourd’hui' : dayName(j.date)}</div>
                 <div style={{ fontSize: 17, fontWeight: 800, margin: '2px 0' }}>{Math.round(j.tmax)}° <span style={{ fontSize: 12, color: 'var(--fg-faint)', fontWeight: 600 }}>{Math.round(j.tmin)}°</span></div>
                 <div style={{ color: 'var(--fg-muted)', minHeight: 30 }}>{j.label}</div>
                 <div style={{ color: hue, fontWeight: 700 }}>{j.prob != null ? `${j.prob} % pluie` : ''}</div>
-              </div>
+              </Rise>
             );
           })}
-        </div>
+        </Stagger>
       )}
       {chantiers && chantiers.length > 0 && (
         <div style={{ marginTop: 14 }}>

@@ -4,6 +4,7 @@ import { api } from '../api';
 import { cardStyle, btnGhost, btnAccent, btnDanger, inputStyle, textareaStyle, Field, Modal } from '../components/ui';
 import { useLoad, ErrorNote, Empty, Loading, Pill, Stat, statGrid } from '../components/bits';
 import { fmtDay } from '../lib/dates';
+import { GrowBar, Stagger, Rise } from '../components/motion';
 
 const STATUTS = {
   critique: ['Critique', '#c4584f'],
@@ -19,8 +20,8 @@ function Gauge({ item }) {
   const pos = v => `${Math.min(100, Math.max(0, (Number(v) / max) * 100))}%`;
   const hue = STATUTS[item.statut][1];
   return (
-    <div style={{ position: 'relative', height: 10, borderRadius: 6, background: 'var(--surface-2)', margin: '10px 0 4px' }} aria-hidden="true">
-      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: pos(item.quantite), borderRadius: 6, background: hue }} />
+    <div style={{ position: 'relative', margin: '10px 0 4px' }} aria-hidden="true">
+      <GrowBar pct={(Number(item.quantite) / max) * 100} color={hue} />
       {[['seuil_critique', '#c4584f'], ['seuil_min', '#c8924a'], ['seuil_max', '#6b8cae']].map(([k, c]) => item[k] != null && (
         <div key={k} style={{ position: 'absolute', top: -3, bottom: -3, left: pos(item[k]), width: 2, background: c }} />
       ))}
@@ -55,11 +56,11 @@ export default function Inventaire() {
         <Stat label="Total utilisé" value={nb(items.reduce((s, i) => s + (i.utilise_total || 0), 0))} hint="Toutes unités confondues" />
       </div>
       {loading && <Loading />}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 340px), 1fr))', gap: 14 }}>
+      <Stagger style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 340px), 1fr))', gap: 14 }}>
         {items.map(i => {
           const [label, hue] = STATUTS[i.statut];
           return (
-            <article key={i.id} style={{ ...cardStyle, padding: 16, borderColor: i.statut === 'critique' ? '#c4584f' : undefined }}>
+            <Rise key={i.id} lift={false}><article style={{ ...cardStyle, padding: 16, borderColor: i.statut === 'critique' ? '#c4584f' : undefined }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontWeight: 800, fontSize: 16, overflowWrap: 'anywhere' }}>{i.nom}</div>
@@ -82,10 +83,10 @@ export default function Inventaire() {
                 <button style={{ ...btnGhost, height: 40 }} aria-label="Modifier" onClick={() => setEdit(i)}><Pencil size={15} /></button>
                 <button style={{ ...btnDanger, height: 40, marginLeft: 'auto' }} aria-label="Supprimer" onClick={() => remove(i)}><Trash2 size={15} /></button>
               </div>
-            </article>
+            </article></Rise>
           );
         })}
-      </div>
+      </Stagger>
       {!loading && !items.length && <Empty>Aucun produit. Clique « Ajouter un produit » (ex. Noxnano, scellant, rouleaux…).</Empty>}
       {edit && <ItemModal item={edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); reload(); }} />}
       {move && <MoveModal item={move.item} type={move.type} chantiers={chantiers || []} onClose={() => setMove(null)} onSaved={() => { setMove(null); reload(); }} />}
