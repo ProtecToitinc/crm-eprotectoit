@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { Motion, PageTransition } from './components/motion';
 import Login from './components/Login';
 import Layout from './components/Layout';
@@ -29,6 +30,7 @@ export default function App() {
   const location = useLocation();
   const [auth, setAuth] = useState(null);
   const [user, setUser] = useState(() => { try { return localStorage.getItem('crm_user') || ''; } catch { return ''; } });
+  const [welcomeFade, setWelcomeFade] = useState(false); // fondu d'entrée juste après la connexion
 
   const logout = async () => {
     try { await api.logout(); } catch { /* session déjà expirée */ }
@@ -51,7 +53,7 @@ export default function App() {
     </div>
   );
 
-  if (!auth) return <Login onLogin={name => { setUser(name); setAuth(true); }} />;
+  if (!auth) return <Login onLogin={name => { setUser(name); setWelcomeFade(true); setAuth(true); }} />;
 
   return (
     <Motion>
@@ -82,6 +84,11 @@ export default function App() {
           </Routes>
           </PageTransition>
         </Layout>
+        {welcomeFade && (
+          <motion.div aria-hidden="true" style={{ position: 'fixed', inset: 0, zIndex: 9999, background: '#0a0a0b', pointerEvents: 'none' }}
+            initial={{ opacity: 1 }} animate={{ opacity: 0 }} transition={{ duration: 0.6, ease: 'easeOut' }}
+            onAnimationComplete={() => setWelcomeFade(false)} />
+        )}
       </UIProvider>
     </ThemeProvider>
     </Motion>
