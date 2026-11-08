@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { RefreshCw, Check, AlertCircle, ArrowRight, CalendarClock } from 'lucide-react';
+import { RefreshCw, Check, AlertCircle, ArrowRight, CalendarClock, Trash2 } from 'lucide-react';
 import { api } from '../api';
-import { cardStyle, btnGhost } from '../components/ui';
+import { cardStyle, btnGhost, btnDanger } from '../components/ui';
 import { useLoad, ErrorNote, CallButton, Empty, Loading, Pill, dollars, notifyBadges } from '../components/bits';
 import { fmtDay, parseDb, timeAgo } from '../lib/dates';
 
@@ -35,6 +35,9 @@ export default function ATraiter() {
   ];
   const visible = group => view === 'tous' || view === group;
   const done = async id => { try { setActionError(''); await api.taches.update(id, { completed: true }); notifyBadges(); await reload(); } catch (e) { setActionError(e.message || 'Impossible de terminer la tâche'); } };
+  const act = async (fn) => { try { setActionError(''); await fn(); notifyBadges(); await reload(); } catch (e) { setActionError(e.message || 'Action impossible'); } };
+  const doneBtn = (fn, title = 'Retirer de la liste') => <button type="button" style={btnGhost} title={title} onClick={() => act(fn)}><Check size={15} /> Fait</button>;
+  const delBtn = (fn, msg) => <button type="button" style={{ ...btnDanger, height: 40 }} aria-label="Supprimer" onClick={() => { if (window.confirm(msg)) act(fn); }}><Trash2 size={15} /> Supprimer</button>;
   const refresh = async () => { try { setActionError(''); await api.relances.run(); await reload(); notifyBadges(); } catch (e) { setActionError(e.message || 'Actualisation impossible'); } };
 
   return (
@@ -67,30 +70,30 @@ export default function ATraiter() {
       {data && <>
         {visible('leads') && <Group title="Nouveaux leads à rappeler" hue="#c17a3f" items={data.leads_nouveaux}>
           {l => <Row key={l.id}><Main><strong>{name(l)}</strong><Sub>{[l.ville, l.campagne].filter(Boolean).join(' · ')} · reçu {timeAgo(l.recu_at) || ''}{l.en_charge ? ` · ${l.en_charge} s’en occupe` : ''}</Sub></Main>
-            <CallButton phone={l.telephone} /><Link to="/opportunites" style={{ ...btnGhost, textDecoration: 'none' }}>Ouvrir</Link></Row>}
+            <CallButton phone={l.telephone} /><Link to="/opportunites" style={{ ...btnGhost, textDecoration: 'none' }}>Ouvrir</Link>{doneBtn(() => api.masquerAttention('lead', l.id))}{delBtn(() => api.leads.remove(l.id), 'Supprimer ce prospect du CRM? Il ne reviendra pas de Facebook.')}</Row>}
         </Group>}
         {visible('leads') && <Group title="Leads à rappeler" hue="#c8924a" items={data.leads_a_rappeler}>
           {l => <Row key={l.id}><Main><strong>{name(l)}</strong><Sub>Tentative {(l.tentatives || 0) + 1}{l.rappel_at ? ` · prévu ${parseDb(l.rappel_at)?.toLocaleString('fr-CA', { dateStyle: 'medium', timeStyle: 'short' })}` : ''}</Sub></Main>
-            <CallButton phone={l.telephone} /><Link to="/opportunites" style={{ ...btnGhost, textDecoration: 'none' }}>Ouvrir</Link></Row>}
+            <CallButton phone={l.telephone} /><Link to="/opportunites" style={{ ...btnGhost, textDecoration: 'none' }}>Ouvrir</Link>{doneBtn(() => api.masquerAttention('lead_rappel', l.id))}{delBtn(() => api.leads.remove(l.id), 'Supprimer ce prospect du CRM? Il ne reviendra pas de Facebook.')}</Row>}
         </Group>}
         {visible('soumissions') && <Group title="Soumissions à relancer" hue="#6b8cae" items={data.soumissions_a_relancer}>
           {q => <Row key={q.id}><Main><strong>{name(q)}</strong><Sub>{q.reference} · {dollars(q.montant)}{q.prochain_suivi ? ` · suivi prévu ${fmtDay(q.prochain_suivi)}` : ''}</Sub></Main>
-            <Link to={`/clients/${q.client_id}`} style={{ ...btnGhost, textDecoration: 'none' }}>Fiche client</Link><Link to="/suivi-soumissions" style={{ ...btnGhost, textDecoration: 'none' }}>Suivi</Link></Row>}
+            <Link to={`/clients/${q.client_id}`} style={{ ...btnGhost, textDecoration: 'none' }}>Fiche client</Link><Link to="/suivi-soumissions" style={{ ...btnGhost, textDecoration: 'none' }}>Suivi</Link>{doneBtn(() => api.masquerAttention('soumission', q.id), 'Retirer de la liste (la soumission reste intacte)')}</Row>}
         </Group>}
         {visible('taches') && <Group title="Tâches et rappels du jour" hue="#9aa0a6" items={data.taches}>
           {t => <Row key={t.id}><Main><strong>{t.titre}</strong><Sub>{t.prenom || t.nom ? `${name(t)} · ` : ''}échéance {fmtDay(t.due_date)}</Sub></Main>
             {t.client_id && <Link to={`/clients/${t.client_id}`} style={{ ...btnGhost, textDecoration: 'none' }}>Fiche</Link>}
-            <button style={btnGhost} onClick={() => done(t.id)}><Check size={15} /> Fait</button></Row>}
+            <button style={btnGhost} onClick={() => done(t.id)}><Check size={15} /> Fait</button>{delBtn(() => api.taches.delete(t.id), 'Supprimer cette tâche?')}</Row>}
         </Group>}
         {visible('taches') && <Group title="Appels à rappeler" hue="#5f9d5f" items={data.appels_a_rappeler}>
           {a => <Row key={a.id}><Main><strong>{name(a)}</strong><Sub>{a.sujet || 'Rappel demandé'}{a.rappel_date ? ` · ${fmtDay(a.rappel_date)}` : ''}</Sub></Main>
-            <CallButton phone={a.telephone} /><Link to={`/clients/${a.client_id}`} style={{ ...btnGhost, textDecoration: 'none' }}>Fiche</Link></Row>}
+            <CallButton phone={a.telephone} /><Link to={`/clients/${a.client_id}`} style={{ ...btnGhost, textDecoration: 'none' }}>Fiche</Link>{doneBtn(() => api.appels.update(a.id, { rappel_fait: 1 }), 'Marquer le rappel comme fait')}</Row>}
         </Group>}
         {visible('operations') && <Group title="Chantiers à planifier" hue="#b27a3e" items={data.chantiers_a_planifier}>
-          {c => <Row key={c.id}><Main><strong>{name(c)}</strong><Sub>{c.titre}</Sub></Main><Link to="/chantiers" style={{ ...btnGhost, textDecoration: 'none' }}>Planifier</Link></Row>}
+          {c => <Row key={c.id}><Main><strong>{name(c)}</strong><Sub>{c.titre}</Sub></Main><Link to="/chantiers" style={{ ...btnGhost, textDecoration: 'none' }}>Planifier</Link>{doneBtn(() => api.masquerAttention('chantier', c.id), 'Retirer de la liste (le chantier reste intact)')}</Row>}
         </Group>}
         {visible('operations') && <Group title="Factures en retard" hue="#c4584f" items={data.factures_en_retard}>
-          {i => <Row key={i.id}><Main><strong>{name(i)}</strong><Sub>{i.reference} · {dollars(i.montant)} · échéance {fmtDay(i.date_echeance)}</Sub></Main><Link to="/facturation" style={{ ...btnGhost, textDecoration: 'none' }}>Facturation</Link></Row>}
+          {i => <Row key={i.id}><Main><strong>{name(i)}</strong><Sub>{i.reference} · {dollars(i.montant)} · échéance {fmtDay(i.date_echeance)}</Sub></Main><Link to="/facturation" style={{ ...btnGhost, textDecoration: 'none' }}>Facturation</Link>{doneBtn(() => api.masquerAttention('facture', i.id), 'Retirer de la liste (la facture reste intacte)')}</Row>}
         </Group>}
       </>}
     </div>

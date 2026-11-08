@@ -161,3 +161,19 @@ test('prospect : suppression si non converti, ne revient pas de Facebook, refus�
   const refused = await api('DELETE', `/api/leads/${b.data.id}`);
   assert.equal(refused.status, 409, 'un prospect converti ne se supprime pas ici');
 });
+
+test('À faire aujourd’hui : « Fait » retire un élément de la liste sans toucher aux données', async () => {
+  const { key } = (await api('GET', '/api/integrations/webhook')).data;
+  const l = await srv.call('POST', '/api/webhooks/leads', { body: { id: 'ATF1', full_name: 'Luc Masque', phone_number: '5145550888' }, headers: { 'x-webhook-key': key } });
+  let a = (await api('GET', '/api/attention')).data;
+  assert.ok(a.leads_nouveaux.some(x => x.id === l.data.id));
+  assert.equal((await api('POST', '/api/attention/masquer', { kind: 'bidon', id: 1 })).status, 400);
+  assert.equal((await api('POST', '/api/attention/masquer', { kind: 'lead', id: l.data.id })).status, 200);
+  a = (await api('GET', '/api/attention')).data;
+  assert.ok(!a.leads_nouveaux.some(x => x.id === l.data.id), 'retiré de la liste');
+  assert.equal((await api('GET', '/api/leads')).data.some(x => x.id === l.data.id), true, 'le prospect existe toujours');
+  const t = await api('POST', '/api/taches', { titre: 'Tâche à supprimer', due_date: '2020-01-01' });
+  assert.ok((await api('GET', '/api/attention')).data.taches.some(x => x.id === t.data.id));
+  await api('DELETE', `/api/taches/${t.data.id}`);
+  assert.ok(!(await api('GET', '/api/attention')).data.taches.some(x => x.id === t.data.id));
+});

@@ -171,6 +171,7 @@ export const api = {
   },
   health: () => req('GET', '/health'),
   attention: () => req('GET', '/attention'),
+  masquerAttention: (kind, id) => req('POST', '/attention/masquer', { kind, id }),
   relances: { run: () => req('POST', '/relances/run', {}) },
   suiviSoumissions: {
     get: () => req('GET', '/suivi-soumissions'),
