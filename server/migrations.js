@@ -46,6 +46,8 @@ async function migrate() {
   // Réponse automatique aux leads (texto / courriel) et liste des désabonnés
   for (const [col, def] of [['reponse_statut', 'TEXT'], ['reponse_canal', 'TEXT'], ['reponse_texte', 'TEXT'], ['reponse_at', 'TEXT'],
     ['reponse_tentatives', 'INTEGER NOT NULL DEFAULT 0'], ['reponse_erreur', 'TEXT']]) await addColumn('leads', col, def);
+  // Prospects supprimés : leur identifiant Meta est mémorisé pour qu'ils ne reviennent pas à la prochaine synchronisation
+  await db.run('CREATE TABLE IF NOT EXISTS leads_supprimes (source TEXT NOT NULL, external_id TEXT NOT NULL, created_at TEXT DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (source, external_id))');
   await db.run('CREATE TABLE IF NOT EXISTS desabonnements (contact TEXT PRIMARY KEY, created_at TEXT DEFAULT CURRENT_TIMESTAMP)');
   // Agent Messenger : conversations (une par personne) et messages (dédoublonnés par identifiant Meta)
   await db.run(`CREATE TABLE IF NOT EXISTS messenger_conversations (
