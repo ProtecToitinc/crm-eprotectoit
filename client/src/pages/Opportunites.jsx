@@ -103,6 +103,7 @@ export default function Opportunites({ user }) {
               {l.statut === 'converti' && l.client_id
                 ? <Link to={`/clients/${l.client_id}`} style={{ ...btnGhost, textDecoration: 'none' }}>Ouvrir la fiche client</Link>
                 : <button style={btnGhost} onClick={() => run(() => api.leads.convert(l.id), 'Converti en client')}><UserPlus size={15} /> Convertir en client</button>}
+              {l.statut !== 'converti' && <button type="button" style={{ ...btnDanger, marginLeft: 'auto' }} onClick={() => { if (window.confirm('Supprimer ce prospect ' + [l.prenom, l.nom].filter(Boolean).join(' ') + ' du CRM? Il ne reviendra pas de Facebook.')) run(() => api.leads.remove(l.id), 'Prospect supprimé'); }}><Trash2 size={15} /> Supprimer</button>}
             </div>
           </article>
         ))}
@@ -213,7 +214,7 @@ function LeadModal({ id, user, onClose }) {
         {lead.client_id
           ? <Link to={`/clients/${lead.client_id}`} style={{ ...btnAccent, textDecoration: 'none' }}>Ouvrir la fiche client{lead.client ? ` — ${[lead.client.prenom, lead.client.nom].filter(Boolean).join(' ')}` : ''}</Link>
           : <button style={btnAccent} onClick={() => run(() => api.leads.convert(id), 'Converti en client')}><UserPlus size={15} /> Convertir en client</button>}
-        <button style={btnDanger} onClick={async () => { if (window.confirm('Supprimer ce prospect du CRM?')) { await api.leads.remove(id); onClose(); } }}><Trash2 size={15} /> Supprimer</button>
+        {lead.statut !== 'converti' && <button style={btnDanger} onClick={async () => { if (window.confirm('Supprimer ce prospect du CRM? Il ne reviendra pas de Facebook.')) { try { await api.leads.remove(id); onClose(); } catch (e) { setErr(e.message); } } }}><Trash2 size={15} /> Supprimer</button>}
       </div>
     </Modal>
   );

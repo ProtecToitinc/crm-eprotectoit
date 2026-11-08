@@ -6,3 +6,9 @@ client/dist
 node_modules
 .env
 .claude/
+
+# secrets et sauvegardes locales: ne jamais envoyer sur GitHub
+server/.crm-secret
+server/backups/
+server/*.db-*
+*.crm-secret

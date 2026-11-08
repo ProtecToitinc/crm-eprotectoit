@@ -146,3 +146,18 @@ test('inventaire : seuils, utilisation, réception, refus si stock insuffisant, 
   assert.equal((await api('DELETE', `/api/inventaire/${c.data.id}`)).status, 200);
   assert.equal((await api('GET', '/api/inventaire')).data.length, 0);
 });
+
+test('prospect : suppression si non converti, ne revient pas de Facebook, refusée si converti', async () => {
+  const { key } = (await api('GET', '/api/integrations/webhook')).data;
+  const post = id => srv.call('POST', '/api/webhooks/leads', { body: { id, full_name: 'Paul Supprime', phone_number: '5145550777' }, headers: { 'x-webhook-key': key } });
+  const a = await post('DEL1');
+  assert.equal((await api('DELETE', `/api/leads/${a.data.id}`)).status, 200);
+  assert.equal((await api('GET', '/api/leads')).data.filter(l => l.id === a.data.id).length, 0);
+  const again = await post('DEL1');
+  assert.equal(again.data.duplicate, true, 'le même prospect Facebook ne revient pas');
+  assert.equal((await api('GET', '/api/leads')).data.filter(l => /Supprime/.test(l.nom || '')).length, 0);
+  const b = await post('DEL2');
+  await api('POST', `/api/leads/${b.data.id}/convertir`);
+  const refused = await api('DELETE', `/api/leads/${b.data.id}`);
+  assert.equal(refused.status, 409, 'un prospect converti ne se supprime pas ici');
+});

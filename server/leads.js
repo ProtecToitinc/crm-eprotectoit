@@ -153,6 +153,7 @@ async function findDuplicate(l) {
 /** `silent` : lead déjà traité (vu, aucun envoi). `quiet` : lead nouveau, mais sans courriel ni réponse automatique (l'appelant prévient l'équipe lui-même). */
 async function ingestLead(input, { silent = false, quiet = false, source = 'webhook' } = {}) {
   const l = input && input.source && input.donnees !== undefined ? input : normalize(input, source);
+  if (l.external_id && !l.hashed && await db.get('SELECT 1 FROM leads_supprimes WHERE source=? AND external_id=?', [l.source, l.external_id])) return { id: null, duplicate: true, reason: 'supprimé' };
   const duplicate = await findDuplicate(l);
   if (duplicate) return { id: duplicate.id, duplicate: true, reason: duplicate.reason };
   const clientId = await matchingClient(l);
@@ -366,7 +367,16 @@ function register(app, { auth }) {
     const r = await convertLead(req.params.id);
     res.status(r ? 200 : 404).json(r || { message: 'Lead introuvable' });
   });
-  app.delete('/api/leads/:id', auth, async (req, res) => { await db.run('DELETE FROM leads WHERE id=?', [req.params.id]); res.json({ ok: true }); });
+  // Suppression d'un prospect NON converti (un prospect converti est déjà une fiche client)
+  app.delete('/api/leads/:id', auth, async (req, res) => {
+    const l = await db.get('SELECT id, source, external_id, statut FROM leads WHERE id=?', [req.params.id]);
+    if (!l) return res.json({ ok: true });
+    if (l.statut === 'converti') return res.status(409).json({ message: 'Ce prospect est déjà converti en client : supprime plutôt la fiche client.' });
+    if (l.external_id) await db.run('INSERT OR IGNORE INTO leads_supprimes (source, external_id) VALUES (?, ?)', [l.source, l.external_id]);
+    await db.run('UPDATE taches SET completed=1 WHERE completed=0 AND lead_id=?', [l.id]);
+    await db.run('DELETE FROM leads WHERE id=?', [l.id]);
+    res.json({ ok: true });
+  });
 
   app.post('/api/meta/poll', auth, async (req, res) => res.json(await pollMeta()));
   app.get('/api/integrations', auth, async (req, res) => {
