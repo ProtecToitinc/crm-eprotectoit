@@ -170,6 +170,22 @@ export const api = {
     setAuto: enabled => req('POST', '/drive/auto', { enabled })
   },
   health: () => req('GET', '/health'),
+  seo: {
+    summary: () => req('GET', '/seo/summary'),
+    approveSafe: () => req('POST', '/seo/suggestions/approve-safe', {}),
+    overview: () => req('GET', '/seo/overview'),
+    issues: () => req('GET', '/seo/issues'),
+    keywords: () => req('GET', '/seo/keywords'),
+    suggestions: () => req('GET', '/seo/suggestions'),
+    approved: () => req('GET', '/seo/approved'),
+    articles: () => req('GET', '/seo/articles'),
+    activity: () => req('GET', '/seo/activity'),
+    run: (type) => req('POST', '/seo/run', { type }),
+    mode: (mode) => req('POST', '/seo/mode', { mode }),
+    decide: (id, action) => req('POST', `/seo/suggestions/${id}/${action}`, {}),
+    createArticle: (topic) => req('POST', '/seo/articles', { topic }),
+    updateArticle: (id, data) => req('PUT', `/seo/articles/${id}`, data)
+  },
   attention: () => req('GET', '/attention'),
   relances: { run: () => req('POST', '/relances/run', {}) },
   suiviSoumissions: {

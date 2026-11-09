@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutGrid, BarChart3, Calendar, MapPin, Users, FileText, Receipt, Phone, PhoneCall, StickyNote, Target, PlugZap, BellRing, HardHat, TrendingUp, Megaphone, ShieldCheck, LogOut } from 'lucide-react';
+import { LayoutGrid, BarChart3, Calendar, MapPin, Users, FileText, Receipt, Phone, PhoneCall, StickyNote, Target, PlugZap, BellRing, HardHat, TrendingUp, Megaphone, ShieldCheck, LogOut, Search } from 'lucide-react';
 import { api } from '../api';
 
 // Navigation organisée selon le parcours réel : répondre, vendre, exécuter, administrer.
@@ -26,6 +26,7 @@ const OPERATIONS = [
 const OUTILS = [
   { to: '/notes', icon: StickyNote, label: 'Notes' },
   { to: '/publicites', icon: Megaphone, label: 'Publicités Meta' },
+  { to: '/seo', icon: Search, label: 'SEO' },
   { to: '/integrations', icon: PlugZap, label: 'Intégrations', badge: 'health' },
   { to: '/parametres', icon: ShieldCheck, label: 'Sécurité et sauvegardes' }
 ];
