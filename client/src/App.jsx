@@ -24,6 +24,7 @@ import SuiviVentes from './pages/SuiviVentes';
 import Chantiers from './pages/Chantiers';
 import Publicites from './pages/Publicites';
 import Parametres from './pages/Parametres';
+import Seo from './pages/Seo';
 import { api } from './api';
 
 export default function App() {
@@ -78,6 +79,7 @@ export default function App() {
             <Route path="/suivi-soumissions" element={<SuiviVentes />} />
             <Route path="/chantiers" element={<Chantiers />} />
             <Route path="/publicites" element={<Publicites />} />
+            <Route path="/seo" element={<Seo />} />
             <Route path="/integrations" element={<Integrations />} />
             <Route path="/parametres" element={<Parametres />} />
             <Route path="*" element={<Navigate to="/" />} />

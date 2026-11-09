@@ -23,6 +23,7 @@ const ROUTE_SCREEN = {
   '/suivi-soumissions': 'salesfollow',
   '/chantiers': 'jobs',
   '/publicites': 'ads',
+  '/seo': 'seo',
   '/parametres': 'settings'
 };
 

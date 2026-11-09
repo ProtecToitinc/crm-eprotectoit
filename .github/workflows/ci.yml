@@ -12,7 +12,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
       - name: Install and build React
         working-directory: client
         run: |
@@ -29,7 +29,7 @@ jobs:
       - name: Validate server source and run tests (isolated temporary databases)
         run: |
           for f in server/*.js; do node --check "$f"; done
-          node --test tests/*.test.js
+          node --test tests/*.test.js tests/*.test.mjs
       - name: Smoke-test API on isolated temporary database
         env:
           PORT: '3055'

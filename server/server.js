@@ -787,6 +787,7 @@ require('./performance').register(app, { auth });
 security.registerAudit(app);
 backup.register(app, { auth, uploadsDirs: [uploadsDir, legacyUploadsDir] });
 sales.register(app, { auth, upload, uploadsDir });
+require('./seo-bridge').register(app, { auth });
 
 // Route API inconnue → JSON (et non la page React)
 app.use('/api', (req, res) => res.status(404).json({ message: 'Route introuvable' }));
