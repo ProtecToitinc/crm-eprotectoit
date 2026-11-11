@@ -38,7 +38,7 @@ export default function Header({ mobileOpen, onToggleMobile }) {
   return (
     <header style={{
       height: 66, flex: 'none', display: 'flex', alignItems: 'center', gap: 12, position: 'relative', zIndex: 31,
-      padding: '0 16px', background: 'var(--surface)', borderBottom: '1px solid var(--border)'
+      padding: '0 16px', background: 'color-mix(in srgb, var(--app-bg) 62%, transparent)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', borderBottom: '1px solid var(--border)'
     }}>
       <button onClick={onToggleMobile} aria-label="Menu" className="flex md:hidden iconbtn" style={{
         width: 36, height: 36, border: '1px solid var(--border)', borderRadius: 9, background: 'var(--surface)',
@@ -76,8 +76,8 @@ export default function Header({ mobileOpen, onToggleMobile }) {
 
       <button className="btn-accent" onClick={() => openModal(null)} title="Nouvelle soumission" aria-label="Nouvelle soumission" style={{
         display: 'flex', alignItems: 'center', gap: 8, height: 40, padding: '0 14px', border: 'none',
-        borderRadius: 10, background: 'var(--accent)', color: 'var(--accent-fg)', fontFamily: 'inherit',
-        fontSize: 13.5, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0
+        borderRadius: 7, background: 'var(--accent)', color: 'var(--accent-fg)', fontFamily: 'inherit', textTransform: 'uppercase', letterSpacing: '.07em',
+        fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0
       }}>
         <Plus size={16} strokeWidth={2.4} />
         <span className="hidden lg:inline">Nouvelle soumission</span>

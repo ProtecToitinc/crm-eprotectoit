@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { motion, animate, useInView, useReducedMotion, AnimatePresence, MotionConfig } from 'framer-motion';
+import { motion, animate, useInView, useReducedMotion, useMotionValue, useSpring, AnimatePresence, MotionConfig } from 'framer-motion';
 
 // Réglage global : respecte « réduire les animations » du système
 export function Motion({ children }) {
@@ -67,4 +67,13 @@ export function GrowBar({ pct, color = 'var(--accent)', height = 10, style }) {
 export function DrawPath({ d, stroke, strokeWidth = 2.5, delay = 0 }) {
   return <motion.path d={d} fill="none" stroke={stroke} strokeWidth={strokeWidth} strokeLinecap="round"
     initial={{ pathLength: 0, opacity: 0 }} animate={{ pathLength: 1, opacity: 1 }} transition={{ duration: 1.1, delay, ease: 'easeInOut' }} />;
+}
+
+// Carte qui penche vers le curseur (3D)
+export function Tilt({ children, max = 6, style, className }) {
+  const ref = useRef(null), reduce = useReducedMotion();
+  const rx = useMotionValue(0), ry = useMotionValue(0);
+  const sx = useSpring(rx, { stiffness: 220, damping: 18 }), sy = useSpring(ry, { stiffness: 220, damping: 18 });
+  const onMove = e => { if (reduce || e.pointerType === 'touch') return; const r = ref.current.getBoundingClientRect(); ry.set(((e.clientX - r.left) / r.width - 0.5) * max * 2); rx.set(-((e.clientY - r.top) / r.height - 0.5) * max * 2); };
+  return <motion.div ref={ref} onPointerMove={onMove} onPointerLeave={() => { rx.set(0); ry.set(0); }} style={{ rotateX: sx, rotateY: sy, transformPerspective: 900, ...style }} className={className}>{children}</motion.div>;
 }
