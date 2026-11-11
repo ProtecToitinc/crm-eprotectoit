@@ -48,6 +48,8 @@ async function migrate() {
     ['reponse_tentatives', 'INTEGER NOT NULL DEFAULT 0'], ['reponse_erreur', 'TEXT']]) await addColumn('leads', col, def);
   // Prospects supprimés : leur identifiant Meta est mémorisé pour qu'ils ne reviennent pas à la prochaine synchronisation
   await db.run('CREATE TABLE IF NOT EXISTS leads_supprimes (source TEXT NOT NULL, external_id TEXT NOT NULL, created_at TEXT DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (source, external_id))');
+  // Éléments retirés à la main de « À faire aujourd'hui » (Fait) sans toucher aux données d'origine
+  await db.run('CREATE TABLE IF NOT EXISTS attention_masques (kind TEXT NOT NULL, ref TEXT NOT NULL, created_at TEXT DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (kind, ref))');
   await db.run('CREATE TABLE IF NOT EXISTS desabonnements (contact TEXT PRIMARY KEY, created_at TEXT DEFAULT CURRENT_TIMESTAMP)');
   // Agent Messenger : conversations (une par personne) et messages (dédoublonnés par identifiant Meta)
   await db.run(`CREATE TABLE IF NOT EXISTS messenger_conversations (

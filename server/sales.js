@@ -125,9 +125,11 @@ async function attention() {
     db.all(`SELECT q.id,q.reference,q.montant,q.client_id,q.created_at,q.date_envoi,q.prochain_suivi,q.notes,c.prenom,c.nom FROM quotes q JOIN clients c ON c.id=q.client_id LEFT JOIN opportunites o ON o.id=q.opportunite_id
       WHERE q.statut='envoyee' AND (o.etape IS NULL OR o.etape='soumission') AND ((q.prochain_suivi IS NOT NULL AND q.prochain_suivi<=?) OR (q.prochain_suivi IS NULL AND datetime(q.created_at)<=datetime('now','-2 days') AND COALESCE(q.notes,'') NOT LIKE '%mport%Drive%')) ORDER BY q.created_at LIMIT 50`, [today])
   ]);
+  const masked = new Set((await db.all('SELECT kind, ref FROM attention_masques')).map(m => m.kind + ':' + m.ref));
+  const keep = kind => x => !masked.has(kind + ':' + x.id);
   const groups = {
-    leads_nouveaux: leadsNouveaux, leads_a_rappeler: rappelsLeads, taches: tachesRetard, appels_a_rappeler: appels,
-    soumissions_a_relancer: quotes, factures_en_retard: factures, chantiers_a_planifier: chantiers
+    leads_nouveaux: leadsNouveaux.filter(keep('lead')), leads_a_rappeler: rappelsLeads.filter(keep('lead_rappel')), taches: tachesRetard, appels_a_rappeler: appels,
+    soumissions_a_relancer: quotes.filter(keep('soumission')), factures_en_retard: factures.filter(keep('facture')), chantiers_a_planifier: chantiers.filter(keep('chantier'))
   };
   return { total: Object.values(groups).reduce((n, g) => n + g.length, 0), ...groups };
 }
@@ -237,6 +239,13 @@ async function adsDashboard(from, to) {
 function register(app, { auth, upload, uploadsDir }) {
   meteo.register(app, { auth });
   app.get('/api/attention', auth, async (req, res) => res.json(await attention()));
+  // « Fait » : retire l'élément de la liste (sans modifier le prospect, la soumission, la facture ou le chantier)
+  app.post('/api/attention/masquer', auth, async (req, res) => {
+    const kind = String(req.body?.kind || ''), id = Number(req.body?.id);
+    if (!['lead', 'lead_rappel', 'soumission', 'facture', 'chantier'].includes(kind) || !Number.isInteger(id)) return res.status(400).json({ message: 'Élément invalide' });
+    await db.run('INSERT OR IGNORE INTO attention_masques (kind, ref) VALUES (?, ?)', [kind, String(id)]);
+    res.json({ ok: true });
+  });
   app.post('/api/relances/run', auth, async (req, res) => res.json(await runRelances()));
   app.get('/api/suivi-soumissions', auth, async (req, res) => res.json(await suiviSoumissions()));
   app.post('/api/quotes/:id/envoyee', auth, async (req, res) => {
