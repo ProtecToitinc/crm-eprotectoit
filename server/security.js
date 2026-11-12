@@ -31,7 +31,10 @@ function recordFailure(ip) {
   const f = failures.get(ip) || { n: 0, first: now, lockedUntil: 0, locks: 0 };
   if (now - f.first > WINDOW) { f.n = 0; f.first = now; }
   f.n++;
+  const left = MAX_FAILS - f.n;
   if (f.n >= MAX_FAILS) { f.locks++; f.lockedUntil = now + Math.min(15 * 60 * 1000 * 2 ** (f.locks - 1), 6 * 3600 * 1000); f.n = 0; f.first = now; }
+  failures.set(ip, f);
+  return Math.max(0, left);
   failures.set(ip, f);
 }
 const recordSuccess = ip => failures.delete(ip);
@@ -76,14 +79,17 @@ function registerAuth(app, password) {
     if (!user) return res.status(400).json({ ok: false, message: 'Choisis ton nom (Mathys Caron ou Ramy Farah).' });
     if (given && safeEqual(given, passwordFor(user, password))) {
       recordSuccess(ip);
+      // Pour l'utilisateur : quand il s'est connecté la dernière fois, et combien d'essais ont échoué depuis
+      const prev = await db.get("SELECT id, at, ip FROM audit_log WHERE actor=? AND action='connexion' ORDER BY id DESC LIMIT 1", [user]).catch(() => null);
+      const fails = await db.get("SELECT COUNT(*) n FROM audit_log WHERE actor=? AND action='connexion-échec' AND id>?", [user, prev?.id || 0]).catch(() => null);
       const token = await createSession(req, user);
       await audit({ actor: user, action: 'connexion', ip, details: 'Connexion réussie' });
-      return res.json({ ok: true, token, user });
+      return res.json({ ok: true, token, user, derniere: prev ? { at: prev.at, meme_appareil: prev.ip === ip } : null, echecs: fails?.n || 0 });
     }
-    recordFailure(ip);
+    const left = recordFailure(ip);
     await new Promise(r => setTimeout(r, 400)); // ralentit les essais automatisés
     await audit({ actor: user, action: 'connexion-échec', ip, details: 'Mot de passe incorrect' });
-    res.status(401).json({ ok: false, message: 'Mot de passe incorrect' });
+    res.status(401).json({ ok: false, message: left ? `Mot de passe incorrect. Il te reste ${left} essai${left > 1 ? 's' : ''}.` : 'Trop de tentatives : connexion bloquée 15 minutes.' });
   });
   app.post('/api/auth/verify', async (req, res) => {
     const token = typeof req.body?.token === 'string' ? req.body.token : bearer(req);
@@ -122,7 +128,10 @@ function securityHeaders(req, res, next) {
   res.set({
     'X-Content-Type-Options': 'nosniff',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
-    'Content-Security-Policy': "frame-ancestors 'none'",
+    // Seuls nos propres scripts s'exécutent ; polices Google et tuiles de carte OpenStreetMap autorisées
+    'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://*.tile.openstreetmap.org; connect-src 'self'; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+    'X-Frame-Options': 'DENY',
+    'Cross-Origin-Resource-Policy': 'same-origin',
     'Permissions-Policy': 'camera=(self), geolocation=(self), microphone=()',
     'Cross-Origin-Opener-Policy': 'same-origin'
   });

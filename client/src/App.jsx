@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Motion, PageTransition } from './components/motion';
@@ -6,26 +6,29 @@ import Login from './components/Login';
 import Layout from './components/Layout';
 import { ThemeProvider } from './context/ThemeContext';
 import { UIProvider } from './context/UIContext';
-import Dashboard from './pages/Dashboard';
-import Clients from './pages/Clients';
-import ClientDetail from './pages/ClientDetail';
-import Pipeline from './pages/Pipeline';
-import Calendrier from './pages/Calendrier';
-import Carte from './pages/Carte';
-import Soumissions from './pages/Soumissions';
-import Facturation from './pages/Facturation';
-import Notes from './pages/Notes';
-import Appels from './pages/Appels';
-import ARappeler from './pages/ARappeler';
-import Opportunites from './pages/Opportunites';
-import Integrations from './pages/Integrations';
-import ATraiter from './pages/ATraiter';
-import SuiviVentes from './pages/SuiviVentes';
-import Chantiers from './pages/Chantiers';
-import Publicites from './pages/Publicites';
-import Parametres from './pages/Parametres';
-import Seo from './pages/Seo';
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Clients = lazy(() => import('./pages/Clients'));
+const ClientDetail = lazy(() => import('./pages/ClientDetail'));
+const Pipeline = lazy(() => import('./pages/Pipeline'));
+const Calendrier = lazy(() => import('./pages/Calendrier'));
+const Carte = lazy(() => import('./pages/Carte'));
+const Soumissions = lazy(() => import('./pages/Soumissions'));
+const Facturation = lazy(() => import('./pages/Facturation'));
+const Notes = lazy(() => import('./pages/Notes'));
+const Appels = lazy(() => import('./pages/Appels'));
+const ARappeler = lazy(() => import('./pages/ARappeler'));
+const Opportunites = lazy(() => import('./pages/Opportunites'));
+const Integrations = lazy(() => import('./pages/Integrations'));
+const ATraiter = lazy(() => import('./pages/ATraiter'));
+const SuiviVentes = lazy(() => import('./pages/SuiviVentes'));
+const Chantiers = lazy(() => import('./pages/Chantiers'));
+const Publicites = lazy(() => import('./pages/Publicites'));
+const Parametres = lazy(() => import('./pages/Parametres'));
+const Seo = lazy(() => import('./pages/Seo'));
 import { api } from './api';
+
+const IDLE_MS = 60 * 60 * 1000; // verrouillage après 1 h sans activité
+const PageLoading = () => <div role="status" aria-label="Chargement" style={{ display: 'grid', gap: 16 }}>{[90, 220, 140].map((h, i) => <div key={i} className="shimmer" style={{ height: h, borderRadius: 14 }} />)}</div>;
 
 export default function App() {
   const location = useLocation();
@@ -38,6 +41,17 @@ export default function App() {
     localStorage.removeItem('crm_token');
     setAuth(false);
   };
+
+  // Verrouillage automatique : sans clic, touche ou défilement pendant 1 h, la session se ferme
+  useEffect(() => {
+    if (!auth) return undefined;
+    let last = Date.now();
+    const touch = () => { last = Date.now(); };
+    const events = ['pointerdown', 'keydown', 'scroll', 'visibilitychange'];
+    events.forEach(e => window.addEventListener(e, touch, { passive: true, capture: true }));
+    const timer = setInterval(() => { if (Date.now() - last > IDLE_MS) { try { sessionStorage.setItem('crm_login_note', 'Session fermée après 1 heure sans activité.'); } catch { /* sans stockage */ } logout(); } }, 30000);
+    return () => { clearInterval(timer); events.forEach(e => window.removeEventListener(e, touch, { capture: true })); };
+  }, [auth]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const token = localStorage.getItem('crm_token');
@@ -62,6 +76,7 @@ export default function App() {
       <UIProvider>
         <Layout user={user} onLogout={logout}>
           <PageTransition id={location.pathname.split('/')[1] || 'accueil'}>
+          <Suspense fallback={<PageLoading />}>
           <Routes location={location}>
             <Route path="/" element={<Dashboard />} />
             <Route path="/clients" element={<Clients />} />
@@ -84,6 +99,7 @@ export default function App() {
             <Route path="/parametres" element={<Parametres />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
+          </Suspense>
           </PageTransition>
         </Layout>
         {welcomeFade && (

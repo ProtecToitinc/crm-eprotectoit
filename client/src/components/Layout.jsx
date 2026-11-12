@@ -6,9 +6,21 @@ import QuoteModal from './QuoteModal';
 import CallModal from './CallModal';
 import NoteModal from './NoteModal';
 import Toast from './Toast';
+import { useUI } from '../context/UIContext';
 
 export default function Layout({ children, user, onLogout }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { showToast } = useUI();
+  // Après la connexion : rappel de la dernière connexion et des essais échoués depuis
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem('crm_last_login'); if (!raw) return;
+      sessionStorage.removeItem('crm_last_login');
+      const d = JSON.parse(raw), when = new Date(String(d.at).replace(' ', 'T') + (/Z$/.test(d.at) ? '' : 'Z'));
+      if (Number.isNaN(when.getTime())) return;
+      showToast(`Dernière connexion : ${when.toLocaleString('fr-CA', { dateStyle: 'medium', timeStyle: 'short' })}${d.meme ? '' : ' (autre appareil ou réseau)'}${d.echecs ? ` · ${d.echecs} essai${d.echecs > 1 ? 's' : ''} échoué${d.echecs > 1 ? 's' : ''} depuis` : ''}`);
+    } catch { /* note facultative */ }
+  }, [showToast]);
   // Lueur dorée qui suit le curseur sur les cartes
   useEffect(() => {
     const onMove = e => { const el = e.target.closest?.('.spot, main article'); if (!el) return; const r = el.getBoundingClientRect(); el.style.setProperty('--mx', (e.clientX - r.left) + 'px'); el.style.setProperty('--my', (e.clientY - r.top) + 'px'); };
