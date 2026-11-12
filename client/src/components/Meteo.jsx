@@ -24,7 +24,7 @@ export default function Meteo() {
   };
   const now = data?.maintenant;
   return (
-    <section aria-label="Météo" style={{ ...cardStyle, padding: '16px 18px', marginBottom: 20 }}>
+    <section aria-label="Météo" className="spot" style={{ ...cardStyle, padding: '16px 18px', marginBottom: 20 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
           <CloudSun size={26} color="var(--accent)" />

@@ -21,6 +21,12 @@ export default function Layout({ children, user, onLogout }) {
       showToast(`Dernière connexion : ${when.toLocaleString('fr-CA', { dateStyle: 'medium', timeStyle: 'short' })}${d.meme ? '' : ' (autre appareil ou réseau)'}${d.echecs ? ` · ${d.echecs} essai${d.echecs > 1 ? 's' : ''} échoué${d.echecs > 1 ? 's' : ''} depuis` : ''}`);
     } catch { /* note facultative */ }
   }, [showToast]);
+  // Lueur dorée qui suit le curseur sur les cartes
+  useEffect(() => {
+    const onMove = e => { const el = e.target.closest?.('.spot, main article'); if (!el) return; const r = el.getBoundingClientRect(); el.style.setProperty('--mx', (e.clientX - r.left) + 'px'); el.style.setProperty('--my', (e.clientY - r.top) + 'px'); };
+    document.addEventListener('pointermove', onMove, { passive: true });
+    return () => document.removeEventListener('pointermove', onMove);
+  }, []);
 
   return (
     <div className="crm-root" style={{ display: 'flex', minHeight: '100vh', fontSize: 14 }}>
