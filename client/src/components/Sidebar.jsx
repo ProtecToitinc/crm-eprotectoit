@@ -6,7 +6,7 @@ import { api } from '../api';
 // Navigation organisée selon le parcours réel : répondre, vendre, exécuter, administrer.
 const PRINCIPAL = [
   { to: '/', icon: LayoutGrid, label: 'Vue d’ensemble', end: true },
-  { to: '/a-traiter', icon: BellRing, label: 'À faire aujourd’hui', badge: 'attention' },
+  { to: '/a-traiter', icon: BellRing, label: 'À traiter', badge: 'attention' },
   { to: '/calendrier', icon: Calendar, label: 'Calendrier' }
 ];
 const VENTES = [
@@ -14,9 +14,9 @@ const VENTES = [
   { to: '/pipeline', icon: BarChart3, label: 'Pipeline de vente' },
   { to: '/clients', icon: Users, label: 'Clients' },
   { to: '/soumissions', icon: FileText, label: 'Soumissions' },
-  { to: '/suivi-soumissions', icon: TrendingUp, label: 'Relances des soumissions' },
-  { to: '/a-rappeler', icon: PhoneCall, label: 'À rappeler (essais)' },
-  { to: '/appels', icon: Phone, label: 'Appels et suivis' }
+  { to: '/suivi-soumissions', icon: TrendingUp, label: 'Suivi des ventes' },
+  { to: '/a-rappeler', icon: PhoneCall, label: 'Tentatives de contact' },
+  { to: '/appels', icon: Phone, label: 'Journal des appels' }
 ];
 const OPERATIONS = [
   { to: '/chantiers', icon: HardHat, label: 'Chantiers' },

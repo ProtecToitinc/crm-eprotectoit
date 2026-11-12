@@ -163,7 +163,8 @@ app.get('/api/clients/:id', auth, async (req, res) => {
     db.all('SELECT * FROM taches WHERE client_id = ? ORDER BY completed ASC, due_date ASC', [id]),
     db.all('SELECT * FROM documents WHERE client_id = ? ORDER BY created_at DESC', [id]),
     db.all('SELECT * FROM historique WHERE client_id = ? ORDER BY created_at DESC, id DESC LIMIT 50', [id]),
-    db.all('SELECT * FROM quotes WHERE client_id = ? ORDER BY created_at DESC', [id]),
+    db.all(`SELECT q.*, ${sales.quoteFollowFields} FROM quotes q
+      LEFT JOIN opportunites o ON o.id=q.opportunite_id WHERE q.client_id=? ORDER BY q.created_at DESC`, [id]),
     db.all('SELECT * FROM invoices WHERE client_id = ? ORDER BY created_at DESC', [id]),
     db.all('SELECT * FROM evenements WHERE client_id = ? ORDER BY date_debut DESC', [id]),
     db.all('SELECT * FROM notes WHERE client_id = ? ORDER BY epingle DESC, updated_at DESC, id DESC', [id]),
@@ -730,6 +731,7 @@ app.get('/api/stats', auth, async (req, res) => {
     evenementsProjetsAvenir,
     { total: totalConversion90 },
     { complete: completeConversion90 },
+    quoteConversion90,
     appelsARappeler,
     appelsSemaine,
     { n: nbRappels }
@@ -750,8 +752,11 @@ app.get('/api/stats', auth, async (req, res) => {
     db.get(`SELECT COUNT(*) as n FROM quotes WHERE statut IN ('brouillon','envoyee') AND created_at >= datetime('now','-7 days')`),
     db.get(`SELECT COUNT(*) as n FROM opportunites WHERE etape='contrat'`),
     db.get(`SELECT COUNT(*) as n FROM evenements WHERE type='projet' AND date_debut >= ?`, [today]),
-    db.get(`SELECT COUNT(*) as total FROM opportunites WHERE etape != 'lead' AND created_at >= datetime('now','-90 days')`),
+    db.get(`SELECT COUNT(*) as total FROM opportunites WHERE created_at >= datetime('now','-90 days')`),
     db.get(`SELECT COUNT(*) as complete FROM opportunites WHERE etape='complete' AND created_at >= datetime('now','-90 days')`),
+    db.get(`SELECT COUNT(*) AS total, COUNT(CASE WHEN statut='acceptee' THEN 1 END) AS accepted
+      FROM quotes WHERE statut IN ('envoyee','acceptee','refusee')
+      AND date(COALESCE(date_envoi, created_at)) >= date('now','-90 days')`),
     db.all(`SELECT a.*, c.nom, c.prenom, c.telephone FROM appels a JOIN clients c ON a.client_id = c.id
       WHERE a.a_rappeler = 1 AND a.rappel_fait = 0
       ORDER BY (a.rappel_date IS NULL), a.rappel_date ASC, IFNULL(a.rappel_heure,'') ASC LIMIT 8`),
@@ -765,7 +770,7 @@ app.get('/api/stats', auth, async (req, res) => {
     ORDER BY h.created_at DESC, h.id DESC LIMIT 6`);
 
   const pctDelta = (cur, prev) => prev > 0 ? Math.round(((cur - prev) / prev) * 1000) / 10 : (cur > 0 ? 100 : 0);
-  const tauxConversion = totalConversion90 > 0 ? Math.round((completeConversion90 / totalConversion90) * 1000) / 10 : 0;
+  const tauxConversion = totalConversion90 > 0 ? Math.round((completeConversion90 / totalConversion90) * 1000) / 10 : null;
 
   res.json({
     totalClients, totalOpportunites, valeurPipeline,
@@ -774,6 +779,7 @@ app.get('/api/stats', auth, async (req, res) => {
     quotesActives: quotesActives.n, quotesActivesSemaine: quotesActivesSemaineDerniere.n,
     projetsEnCours: projetsEnCours.n, evenementsProjetsAvenir: evenementsProjetsAvenir.n,
     tauxConversion,
+    tauxSoumissionsAcceptees: quoteConversion90.total ? Math.round(quoteConversion90.accepted / quoteConversion90.total * 1000) / 10 : null,
     appelsARappeler, appelsSemaine: appelsSemaine.n, nbRappels,
     today,
     historiqueActivite

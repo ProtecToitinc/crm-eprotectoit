@@ -52,7 +52,7 @@ export default function Dashboard() {
     { icon: Wallet, spark: true, label: 'Revenus du mois', value: money(stats.revenuMois), delta: fmtDelta(stats.revenuMoisDelta), deltaColor: stats.revenuMoisDelta >= 0 ? '#5f9d5f' : '#c4584f', sub: 'vs mois dernier' },
     { icon: FileText, label: 'Soumissions actives', value: String(stats.quotesActives), delta: `+${stats.quotesActivesSemaine}`, deltaColor: '#5f9d5f', sub: 'cette semaine' },
     { icon: HardHat, label: 'Projets en cours', value: String(stats.projetsEnCours), delta: `${stats.evenementsProjetsAvenir} à venir`, deltaColor: 'var(--accent)', sub: 'sur le terrain' },
-    { icon: Percent, label: 'Taux de conversion', value: `${stats.tauxConversion} %`, delta: '90 jours', deltaColor: '#5f9d5f', sub: 'lead → complété' },
+    { icon: Percent, label: 'Dossiers terminés', value: stats.tauxConversion == null ? '—' : `${String(stats.tauxConversion).replace('.', ',')} %`, delta: '90 jours', deltaColor: '#5f9d5f', sub: 'part des dossiers créés' },
     { icon: PhoneCall, label: 'Appels (7 jours)', value: String(stats.appelsSemaine || 0), delta: `${nbRappels} à rappeler`, deltaColor: nbRappels > 0 ? '#c8924a' : '#5f9d5f', sub: 'en attente' }
   ];
 

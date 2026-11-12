@@ -42,7 +42,7 @@ export default function Hero({ stats }) {
           <div className="hero-stats">
             <div className="hero-stat"><div className="numeral"><CountUp value={money(stats.valeurPipeline)} duration={1.4} /></div><small>Valeur du pipeline</small></div>
             <div className="hero-stat"><div className="numeral"><CountUp value={String(stats.totalClients)} duration={1.4} /></div><small>Clients</small></div>
-            <div className="hero-stat"><div className="numeral"><CountUp value={`${String(stats.tauxConversion).replace('.', ',')} %`} duration={1.4} /></div><small>Conversion 90 jours</small></div>
+            <div className="hero-stat"><div className="numeral">{stats.tauxSoumissionsAcceptees == null ? '—' : <CountUp value={`${String(stats.tauxSoumissionsAcceptees).replace('.', ',')} %`} duration={1.4} />}</div><small>Soumissions acceptées · 90 jours</small></div>
           </div>
         </Rise>
       </Stagger>

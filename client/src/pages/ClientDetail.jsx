@@ -4,7 +4,8 @@ import { ArrowLeft, Edit, Trash2, Plus, Home, Phone, Mail, MapPin, FileText, Clo
 import { api } from '../api';
 import { useUI } from '../context/UIContext';
 import { STAGES, SERVICES, SERVICE_HUE, CALL_DIRECTIONS, money, soft } from '../constants';
-import { fmtDay, fmtDbDay, fmtDbDateTime, daysFromToday, relativeDay } from '../lib/dates';
+import { fmtDay, fmtDbDay, fmtDbDateTime, daysFromToday, relativeDay, todayKey } from '../lib/dates';
+import { followLabel } from '../lib/quoteFollow';
 import { telHref, fullName } from '../lib/search';
 import { Modal, Field, Avatar, DirectionChip, inputStyle, textareaStyle, btnGhost, btnAccent, btnDanger, iconBtn, cardStyle } from '../components/ui';
 
@@ -44,6 +45,16 @@ export default function ClientDetail() {
   const tabsRef = useRef(null);
 
   const tab = TAB_KEYS.includes(params.get('tab')) ? params.get('tab') : 'info';
+  const selectedQuote = params.get('soumission');
+  const loadedClientId = client?.id;
+  useEffect(() => {
+    if (loadedClientId && selectedQuote) {
+      const row = document.getElementById(`soumission-${selectedQuote}`);
+      row?.focus({ preventScroll: true });
+      row?.scrollIntoView({ block: 'center' });
+    }
+  }, [loadedClientId, selectedQuote]);
+
   const setTab = key => {
     const next = new URLSearchParams(params);
     if (key === 'info') next.delete('tab'); else next.set('tab', key);
@@ -207,7 +218,7 @@ export default function ClientDetail() {
     { key: 'opportunites', label: 'Dossiers', count: client.opportunites?.length },
     { key: 'appels', label: 'Appels', count: appels.length, alert: rappelsEnCours > 0 },
     { key: 'notes', label: 'Notes', count: notes.length },
-    { key: 'taches', label: 'Tâches', count: client.taches?.filter(t => !t.completed).length },
+    { key: 'taches', label: 'Tâches', count: client.taches?.filter(t => !t.completed && t.type !== 'soumission_relance').length },
     { key: 'documents', label: 'Documents', count: client.documents?.length },
     { key: 'historique', label: 'Historique' }
   ];
@@ -272,6 +283,21 @@ export default function ClientDetail() {
           <button type="button" className="btn-ghost" style={{ ...btnAccent, height: 38 }} onClick={() => quoteFileRef.current?.click()}><Upload size={15}/> Déposer une soumission</button>
           <input ref={quoteFileRef} type="file" accept=".pdf,.xlsx,.xls,.docx,.doc,.csv,.png,.jpg,.jpeg,.txt" hidden onChange={uploadQuote} />
         </div>
+        {(client.quotes || []).map(q => {
+          const selected = String(q.id) === selectedQuote;
+          const drive = (client.driveQuotes || []).find(d => d.quote_id === q.id);
+          const reminders = (client.taches || []).filter(t => t.quote_id === q.id && t.type === 'soumission_relance');
+          return <div key={q.id} id={`soumission-${q.id}`} tabIndex={-1}
+            style={{ padding: '10px 0', marginTop: 10, borderTop: '1px solid var(--border)', outline: selected ? '2px solid var(--accent)' : undefined, outlineOffset: 4 }}>
+            <strong>{q.reference} · {money(q.montant)}</strong>
+            {q.statut === 'envoyee' && <div style={{ fontSize: 12, color: 'var(--fg-muted)' }}>{followLabel(q, todayKey())}</div>}
+            {drive?.web_link && <a href={drive.web_link} target="_blank" rel="noopener noreferrer">Voir le document de la soumission ↗</a>}
+            {reminders.length > 0 && <details style={{ fontSize: 12, marginTop: 4 }}>
+              <summary>Historique des rappels</summary>
+              <ul>{reminders.map(t => <li key={t.id}>{t.titre} · {fmtDay(t.due_date)}{t.completed ? ' · terminé' : ''}</li>)}</ul>
+            </details>}
+          </div>;
+        })}
         {(client.documents || []).filter(d => d.type_doc === 'soumission').map(d => (
           <div key={d.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, borderTop: '1px solid var(--border)', marginTop: 10, paddingTop: 10, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 12.5, fontWeight: 700, overflowWrap: 'anywhere' }}>{d.nom}</span>
@@ -537,9 +563,9 @@ export default function ClientDetail() {
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
             <button className="btn-accent" onClick={() => { setModalError(''); setShowTacheForm(true); }} style={btnAccent}><Plus size={14} />Nouvelle tâche</button>
           </div>
-          {client.taches?.length === 0 && <Empty text="Aucune tâche" />}
+          {!client.taches?.some(t => t.type !== 'soumission_relance') && <Empty text="Aucune tâche" />}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {client.taches?.map(t => {
+            {client.taches?.filter(t => t.type !== 'soumission_relance').map(t => {
               const late = !t.completed && t.due_date && daysFromToday(t.due_date) < 0;
               return (
                 <div key={t.id} style={{ ...cardStyle, padding: 14, display: 'flex', alignItems: 'center', gap: 12, opacity: t.completed ? .5 : 1 }}>
