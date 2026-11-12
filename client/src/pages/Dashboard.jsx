@@ -84,7 +84,7 @@ export default function Dashboard() {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
           {[
-            { label: 'À faire aujourd’hui', detail: 'Rappels et priorités', icon: BellRing, to: '/a-traiter' },
+            { label: 'À traiter', detail: 'Rappels et priorités', icon: BellRing, to: '/a-traiter' },
             { label: 'Prospects', detail: 'Répondre aux demandes', icon: Target, to: '/opportunites' },
             { label: 'Soumissions', detail: 'Préparer et envoyer', icon: FileText, to: '/soumissions' },
             { label: 'Chantiers', detail: 'Planifier les travaux', icon: HardHat, to: '/chantiers' }

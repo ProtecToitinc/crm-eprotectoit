@@ -96,7 +96,9 @@ function Entonnoir({ stats }) {
     <div className="panel-split">
       <Funnel stages={stages} format={money} onSelect={() => navigate('/pipeline')} />
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
-        <Gauge value={stats.tauxConversion} label="Conversion sur 90 jours" size={170} />
+        {stats.tauxConversion == null
+          ? <p style={{ color: 'var(--fg-muted)', textAlign: 'center' }}>Aucun dossier créé dans les 90 derniers jours.</p>
+          : <Gauge value={stats.tauxConversion} label="Dossiers terminés · 90 jours" size={170} />}
         <div style={{ display: 'flex', gap: 22, textAlign: 'center' }}>
           <div><div className="numeral" style={{ fontSize: 22 }}><CountUp value={money(stats.valeurPipeline)} /></div><div className="eyebrow" style={{ color: 'var(--fg-muted)', marginTop: 5 }}>Valeur active</div></div>
           <div><div className="numeral" style={{ fontSize: 22 }}><CountUp value={String(stats.totalOpportunites)} /></div><div className="eyebrow" style={{ color: 'var(--fg-muted)', marginTop: 5 }}>Dossiers actifs</div></div>
