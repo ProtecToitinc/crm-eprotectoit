@@ -186,7 +186,7 @@ export const api = {
     createArticle: (topic) => req('POST', '/seo/articles', { topic }),
     updateArticle: (id, data) => req('PUT', `/seo/articles/${id}`, data)
   },
-  attention: () => req('GET', '/attention'),
+  attention: (includeFuture = false) => req('GET', includeFuture ? '/attention?avenir=1' : '/attention'),
   masquerAttention: (kind, id) => req('POST', '/attention/masquer', { kind, id }),
   relances: { run: () => req('POST', '/relances/run', {}) },
   suiviSoumissions: {

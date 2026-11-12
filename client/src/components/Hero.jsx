@@ -29,7 +29,7 @@ export default function Hero({ stats }) {
         <Rise lift={false}><h1>Bonjour{prenom ? `, ${prenom}` : ''}.</h1></Rise>
         <Rise lift={false}>
           <p style={{ margin: 0, fontSize: 14.5, color: '#b8b2a8', maxWidth: 520 }}>
-            {todo == null ? 'Voici où en est ProtecToit aujourd’hui.' : todo ? `${todo} action${todo > 1 ? 's' : ''} t’attend${todo > 1 ? 'ent' : ''} aujourd’hui.` : 'Tout est à jour. Beau travail!'}
+            {todo == null ? 'Voici où en est ProtecToit aujourd’hui.' : todo ? `${todo} action${todo > 1 ? 's' : ''} à traiter.` : 'Tout est à jour. Beau travail!'}
           </p>
         </Rise>
         <Rise lift={false}>
@@ -42,7 +42,7 @@ export default function Hero({ stats }) {
           <div className="hero-stats">
             <div className="hero-stat"><div className="numeral"><CountUp value={money(stats.valeurPipeline)} duration={1.4} /></div><small>Valeur du pipeline</small></div>
             <div className="hero-stat"><div className="numeral"><CountUp value={String(stats.totalClients)} duration={1.4} /></div><small>Clients</small></div>
-            <div className="hero-stat"><div className="numeral"><CountUp value={`${String(stats.tauxConversion).replace('.', ',')} %`} duration={1.4} /></div><small>Conversion 90 jours</small></div>
+            <div className="hero-stat"><div className="numeral">{stats.tauxSoumissionsAcceptees == null ? '—' : <CountUp value={`${String(stats.tauxSoumissionsAcceptees).replace('.', ',')} %`} duration={1.4} />}</div><small>Soumissions acceptées · 90 jours</small></div>
           </div>
         </Rise>
       </Stagger>

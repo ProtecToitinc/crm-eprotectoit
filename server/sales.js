@@ -53,7 +53,7 @@ async function runRelances() {
   }
   // 4) Soumissions envoyées sans réponse : 2 jours, 6 jours, 14 jours
   const quotes = await db.all(`SELECT q.*, c.prenom, c.nom, o.etape FROM quotes q JOIN clients c ON c.id=q.client_id LEFT JOIN opportunites o ON o.id=q.opportunite_id
-    WHERE q.statut='envoyee' AND datetime(q.created_at) >= datetime(?) AND (o.etape IS NULL OR o.etape='soumission')`, [since]);
+    WHERE q.statut='envoyee' AND q.suivi_cloture=0 AND q.prochain_suivi IS NULL AND datetime(q.created_at) >= datetime(?) AND (o.etape IS NULL OR o.etape='soumission')`, [since]);
   for (const q of quotes) {
     const sent = parseSql(q.date_envoi ? q.date_envoi + ' 12:00:00' : q.created_at), age = (now - sent) / DAY;
     for (const [n, days, label] of [[1, 2, 'Relancer'], [2, 6, 'Deuxième relance de'], [3, 14, 'Dernière relance de']]) {
@@ -112,37 +112,60 @@ async function rappelsVeille() {
   await closeTasks("type='chantier_meteo' AND due_date<?", [today.date]);
 }
 
+// Même échéance pour la liste quotidienne, le suivi des ventes et la fiche client.
+const quoteFollowClosed = `(q.suivi_cloture = 1 OR (q.prochain_suivi IS NULL AND EXISTS (
+  SELECT 1 FROM attention_masques m WHERE m.kind='soumission' AND m.ref=CAST(q.id AS TEXT)
+)))`;
+const quoteFollowFields = `${quoteFollowClosed} AS suivi_ferme,
+  CASE WHEN q.statut='envoyee' AND (o.etape IS NULL OR o.etape='soumission') AND NOT ${quoteFollowClosed}
+  THEN COALESCE(NULLIF(q.prochain_suivi, ''), (
+    SELECT MIN(t.due_date) FROM taches t
+    WHERE t.quote_id=q.id AND t.type='soumission_relance' AND t.completed=0
+  ), CASE WHEN COALESCE(q.notes,'') NOT LIKE '%mport%Drive%'
+    AND NOT EXISTS (SELECT 1 FROM taches t WHERE t.quote_id=q.id AND t.type='soumission_relance')
+    THEN date(COALESCE(q.date_envoi, q.created_at), '+2 days') END)
+  END AS echeance_suivi`;
+
 // ---------- À traiter maintenant ----------
-async function attention() {
+async function attention({ includeFuture = false } = {}) {
   const today = localParts().date;
   const [leadsNouveaux, rappelsLeads, tachesRetard, appels, factures, chantiers, quotes] = await Promise.all([
     db.all("SELECT id,prenom,nom,telephone,ville,campagne,recu_at,en_charge FROM leads WHERE statut='nouveau' ORDER BY datetime(recu_at) DESC LIMIT 50"),
-    db.all("SELECT id,prenom,nom,telephone,rappel_at,tentatives,en_charge FROM leads WHERE statut='a_rappeler' AND (rappel_at IS NULL OR datetime(rappel_at)<=datetime('now')) ORDER BY rappel_at LIMIT 50"),
-    db.all("SELECT t.id,t.titre,t.due_date,t.priorite,t.client_id,c.prenom,c.nom FROM taches t LEFT JOIN clients c ON c.id=t.client_id WHERE t.completed=0 AND t.due_date IS NOT NULL AND t.due_date<=? ORDER BY t.due_date LIMIT 100", [today]),
-    db.all("SELECT a.id,a.client_id,a.rappel_date,a.sujet,c.prenom,c.nom,c.telephone FROM appels a JOIN clients c ON c.id=a.client_id WHERE a.a_rappeler=1 AND a.rappel_fait=0 AND (a.rappel_date IS NULL OR a.rappel_date<=?) ORDER BY a.rappel_date LIMIT 50", [today]),
+    db.all("SELECT id,prenom,nom,telephone,rappel_at,tentatives,en_charge FROM leads WHERE statut='a_rappeler' AND (? OR rappel_at IS NULL OR datetime(rappel_at)<=datetime('now')) ORDER BY rappel_at LIMIT 50", [Number(includeFuture)]),
+    db.all("SELECT t.id,t.titre,t.due_date,t.priorite,t.client_id,c.prenom,c.nom FROM taches t LEFT JOIN clients c ON c.id=t.client_id WHERE t.completed=0 AND COALESCE(t.type,'')<>'soumission_relance' AND t.due_date IS NOT NULL AND (? OR t.due_date<=?) ORDER BY t.due_date LIMIT 100", [Number(includeFuture), today]),
+    db.all("SELECT a.id,a.client_id,a.rappel_date,a.sujet,c.prenom,c.nom,c.telephone FROM appels a JOIN clients c ON c.id=a.client_id WHERE a.a_rappeler=1 AND a.rappel_fait=0 AND (? OR a.rappel_date IS NULL OR a.rappel_date<=?) ORDER BY a.rappel_date LIMIT 50", [Number(includeFuture), today]),
     db.all("SELECT i.id,i.reference,i.montant,i.date_echeance,i.client_id,c.prenom,c.nom FROM invoices i JOIN clients c ON c.id=i.client_id WHERE i.statut='en_retard' OR (i.statut='en_attente' AND i.date_echeance IS NOT NULL AND i.date_echeance<?) ORDER BY i.date_echeance LIMIT 50", [today]),
     db.all("SELECT ch.id,ch.titre,ch.client_id,c.prenom,c.nom FROM chantiers ch JOIN clients c ON c.id=ch.client_id WHERE ch.statut='contrat_signe' ORDER BY ch.id DESC LIMIT 50"),
-    db.all(`SELECT q.id,q.reference,q.montant,q.client_id,q.created_at,q.date_envoi,q.prochain_suivi,q.notes,c.prenom,c.nom FROM quotes q JOIN clients c ON c.id=q.client_id LEFT JOIN opportunites o ON o.id=q.opportunite_id
-      WHERE q.statut='envoyee' AND (o.etape IS NULL OR o.etape='soumission') AND ((q.prochain_suivi IS NOT NULL AND q.prochain_suivi<=?) OR (q.prochain_suivi IS NULL AND datetime(q.created_at)<=datetime('now','-2 days') AND COALESCE(q.notes,'') NOT LIKE '%mport%Drive%')) ORDER BY q.created_at LIMIT 50`, [today])
+    db.all(`WITH suivis AS (
+      SELECT q.id,q.reference,q.montant,q.client_id,c.prenom,c.nom,c.telephone,${quoteFollowFields}
+      FROM quotes q JOIN clients c ON c.id=q.client_id LEFT JOIN opportunites o ON o.id=q.opportunite_id
+    )
+    SELECT * FROM suivis WHERE echeance_suivi IS NOT NULL AND (? OR echeance_suivi<=?)
+    ORDER BY echeance_suivi, id`, [Number(includeFuture), today])
   ]);
   const masked = new Set((await db.all('SELECT kind, ref FROM attention_masques')).map(m => m.kind + ':' + m.ref));
   const keep = kind => x => !masked.has(kind + ':' + x.id);
   const groups = {
-    leads_nouveaux: leadsNouveaux.filter(keep('lead')), leads_a_rappeler: rappelsLeads.filter(keep('lead_rappel')), taches: tachesRetard, appels_a_rappeler: appels,
-    soumissions_a_relancer: quotes.filter(keep('soumission')), factures_en_retard: factures.filter(keep('facture')), chantiers_a_planifier: chantiers.filter(keep('chantier'))
+    leads_nouveaux: leadsNouveaux.filter(keep('lead')),
+    leads_a_rappeler: rappelsLeads.filter(keep('lead_rappel')).map(l => {
+      const when = parseSql(l.rappel_at);
+      return { ...l, date_action: Number.isFinite(when) ? localParts(new Date(when)).date : null };
+    }),
+    taches: tachesRetard, appels_a_rappeler: appels,
+    soumissions_a_relancer: quotes, factures_en_retard: factures.filter(keep('facture')), chantiers_a_planifier: chantiers.filter(keep('chantier'))
   };
-  return { total: Object.values(groups).reduce((n, g) => n + g.length, 0), ...groups };
+  return { today, total: Object.values(groups).reduce((n, g) => n + g.length, 0), ...groups };
 }
 
 // ---------- suivi des soumissions ----------
 async function suiviSoumissions() {
-  const rows = await db.all(`SELECT q.*, c.prenom, c.nom, c.telephone, o.etape, o.titre AS opp_titre FROM quotes q JOIN clients c ON c.id=q.client_id LEFT JOIN opportunites o ON o.id=q.opportunite_id ORDER BY q.created_at DESC`);
+  const rows = await db.all(`SELECT q.*, c.prenom, c.nom, c.telephone, o.etape, o.titre AS opp_titre, ${quoteFollowFields} FROM quotes q JOIN clients c ON c.id=q.client_id LEFT JOIN opportunites o ON o.id=q.opportunite_id ORDER BY q.created_at DESC`);
   const now = Date.now();
   const relances = Object.fromEntries((await db.all("SELECT quote_id, COUNT(*) n FROM taches WHERE quote_id IS NOT NULL AND type='soumission_relance' GROUP BY quote_id")).map(r => [r.quote_id, r.n]));
   const enAttente = rows.filter(q => ['envoyee', 'brouillon'].includes(q.statut) && (!q.etape || q.etape === 'soumission')).map(q => {
     const known = !imported(q);
     const sent = q.date_envoi ? Date.parse(q.date_envoi) : parseSql(q.created_at);
-    return { id: q.id, reference: q.reference, client_id: q.client_id, client: nom(q), telephone: q.telephone, montant: q.montant || 0, statut: q.statut, date_envoi: q.date_envoi || (known ? String(q.created_at).slice(0, 10) : null), jours: known || q.date_envoi ? Math.floor((now - sent) / DAY) : null, prochain_suivi: q.prochain_suivi, relances: relances[q.id] || 0, importee: !known };
+    return { id: q.id, reference: q.reference, client_id: q.client_id, client: nom(q), telephone: q.telephone, montant: q.montant || 0, statut: q.statut, date_envoi: q.date_envoi || (known ? String(q.created_at).slice(0, 10) : null), jours: known || q.date_envoi ? Math.floor((now - sent) / DAY) : null, prochain_suivi: q.prochain_suivi, echeance_suivi: q.echeance_suivi, suivi_ferme: Boolean(q.suivi_ferme), relances: relances[q.id] || 0, importee: !known };
   });
   const perdues = rows.filter(q => q.statut === 'refusee');
   const raisons = {};
@@ -238,7 +261,7 @@ async function adsDashboard(from, to) {
 
 function register(app, { auth, upload, uploadsDir }) {
   meteo.register(app, { auth });
-  app.get('/api/attention', auth, async (req, res) => res.json(await attention()));
+  app.get('/api/attention', auth, async (req, res) => res.json(await attention({ includeFuture: req.query.avenir === '1' })));
   // « Fait » : retire l'élément de la liste (sans modifier le prospect, la soumission, la facture ou le chantier)
   app.post('/api/attention/masquer', auth, async (req, res) => {
     const kind = String(req.body?.kind || ''), id = Number(req.body?.id);
@@ -256,7 +279,19 @@ function register(app, { auth, upload, uploadsDir }) {
     const date = /^\d{4}-\d{2}-\d{2}$/.test(req.body?.prochain_suivi || '') ? req.body.prochain_suivi : null;
     const q = await db.get('SELECT * FROM quotes WHERE id=?', [req.params.id]);
     if (!q) return res.status(404).json({ message: 'Soumission introuvable' });
-    await db.run('UPDATE quotes SET prochain_suivi=? WHERE id=?', [date, q.id]);
+    const close = req.body?.cloturer === true;
+    if (req.body?.prochain_suivi && (!date || !Number.isFinite(Date.parse(date)) || new Date(date).toISOString().slice(0, 10) !== date)) {
+      return res.status(400).json({ message: 'Date de suivi invalide' });
+    }
+    const result = await db.run(`UPDATE quotes SET prochain_suivi=?, suivi_cloture=?
+      WHERE id=? AND statut='envoyee' AND (opportunite_id IS NULL OR EXISTS (
+        SELECT 1 FROM opportunites o WHERE o.id=quotes.opportunite_id AND o.etape='soumission'
+      ))`, [close ? null : date, close ? 1 : 0, q.id]);
+    if (!result.changes) return res.status(409).json({ message: 'Cette soumission n’est plus en attente de suivi' });
+    if (close) {
+      await addHistory(q.client_id, 'soumission', `Suivi de ${q.reference} clôturé`);
+      return res.json({ ok: true });
+    }
     if (req.body?.note) await db.run('INSERT INTO notes (client_id,titre,contenu) VALUES (?,?,?)', [q.client_id, `Suivi ${q.reference}`, String(req.body.note).slice(0, 4000)]);
     await addHistory(q.client_id, 'soumission', `Suivi de ${q.reference}${date ? ` programmé le ${date}` : ''}`);
     res.json({ ok: true });
@@ -430,4 +465,4 @@ function startJobs() {
   every(runRelances, 10 * 60 * 1000, 45 * 1000);
   every(syncAdSpend, 6 * 3600 * 1000, 2 * 60 * 1000);
 }
-module.exports = { register, startJobs, runRelances, attention, suiviSoumissions, computeRentabilite, adsDashboard, syncAdSpend };
+module.exports = { quoteFollowFields, register, startJobs, runRelances, attention, suiviSoumissions, computeRentabilite, adsDashboard, syncAdSpend };

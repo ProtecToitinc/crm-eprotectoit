@@ -77,7 +77,7 @@ async function migrate() {
   await db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_taches_source_key ON taches(source_key) WHERE source_key IS NOT NULL');
 
   // Soumissions : suivi des ventes non conclues
-  for (const [col, def] of [['date_envoi', 'TEXT'], ['raison_perte', 'TEXT'], ['prochain_suivi', 'TEXT']]) await addColumn('quotes', col, def);
+  for (const [col, def] of [['date_envoi', 'TEXT'], ['raison_perte', 'TEXT'], ['prochain_suivi', 'TEXT'], ['suivi_cloture', 'INTEGER NOT NULL DEFAULT 0']]) await addColumn('quotes', col, def);
 
   // Chantiers (suivi des travaux), photos et rentabilité
   // (rappel_envoye_at ajouté plus bas, après la création de la table)
