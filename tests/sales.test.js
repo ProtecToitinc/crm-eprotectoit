@@ -177,3 +177,44 @@ test('À faire aujourd’hui : « Fait » retire un élément de la liste sans t
   await api('DELETE', `/api/taches/${t.data.id}`);
   assert.ok(!(await api('GET', '/api/attention')).data.taches.some(x => x.id === t.data.id));
 });
+
+test('signature en ligne : lien privé, signature par le client, soumission acceptée, refus des doublons', async () => {
+  const c = await api('POST', '/api/clients', { nom: 'Signe', prenom: 'Anne' });
+  const q = await api('POST', '/api/quotes', { client_id: c.data.id, montant: 4200, statut: 'envoyee', service: 'Nano Protection' });
+  assert.equal((await srv.call('POST', `/api/quotes/${q.data.id}/signature`, { body: {} })).status, 401, 'création du lien réservée au CRM');
+  const link = await api('POST', `/api/quotes/${q.data.id}/signature`, {});
+  assert.equal(link.status, 201);
+  const token = link.data.url.split('/signer/')[1];
+  assert.equal((await srv.call('GET', '/api/signature/' + 'x'.repeat(43))).status, 404, 'mauvais jeton');
+  const pub = await srv.call('GET', `/api/signature/${token}`);
+  assert.equal(pub.data.montant, 4200);
+  assert.equal(pub.data.signe, false);
+  assert.equal(pub.data.email, undefined, 'aucune coordonnée exposée');
+  const png = 'data:image/png;base64,' + 'A'.repeat(1200);
+  assert.equal((await srv.call('POST', `/api/signature/${token}`, { body: { nom: 'Anne Signe', accepte: false, signature: png } })).status, 400);
+  assert.equal((await srv.call('POST', `/api/signature/${token}`, { body: { nom: 'Anne Signe', accepte: true, signature: 'x' } })).status, 400);
+  assert.equal((await srv.call('POST', `/api/signature/${token}`, { body: { nom: 'Anne Signe', accepte: true, signature: png } })).status, 200);
+  assert.equal((await srv.call('POST', `/api/signature/${token}`, { body: { nom: 'Autre', accepte: true, signature: png } })).status, 409, 'une seule signature');
+  assert.equal((await api('GET', '/api/quotes')).data.find(x => x.id === q.data.id).statut, 'acceptee');
+  const proof = (await api('GET', `/api/quotes/${q.data.id}/signature`)).data;
+  assert.equal(proof.signer_name, 'Anne Signe');
+  assert.equal((await api('POST', `/api/quotes/${q.data.id}/signature`, {})).status, 409, 'déjà signée');
+});
+
+test('rapport mensuel : chiffres du mois et protection', async () => {
+  assert.equal((await srv.call('GET', '/api/rapport')).status, 401);
+  const r = await api('GET', '/api/rapport');
+  assert.equal(r.status, 200);
+  assert.ok(r.data.courant.ventes >= 1);
+  assert.ok(r.data.courant.vendu >= 4200);
+  assert.equal((await api('GET', '/api/rapport?mois=2020-01')).data.courant.ventes, 0);
+});
+
+test('rappel par texto : refusé proprement si Twilio n’est pas configuré', async () => {
+  const c = await api('POST', '/api/clients', { nom: 'Texto', prenom: 'Luc', telephone: '5145550123' });
+  const ch = await api('POST', '/api/chantiers', { client_id: c.data.id, titre: 'Toit', date_debut: '2030-01-02' });
+  const r = await api('GET', `/api/chantiers/${ch.data.id}/rappel`);
+  assert.equal(r.data.texto_actif, false);
+  assert.match(r.data.texto, /dégager l’entrée/);
+  assert.equal((await api('POST', `/api/chantiers/${ch.data.id}/rappel/texto`)).status, 400);
+});

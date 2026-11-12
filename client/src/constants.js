@@ -84,6 +84,7 @@ export function titleFor(screen) {
     salesfollow: ['Suivi des ventes', 'Soumissions en attente, relances et conversion'],
     jobs: ['Chantiers', 'De la signature à la facture payée'],
     ads: ['Publicités Meta', 'Leads, coûts et ventes par campagne'],
+    rapport: ['Rapport mensuel', 'Ventes, prospects et chantiers du mois, prêt à imprimer'],
     seo: ['SEO', 'Santé du site, mots-clés et contenu Google'],
     settings: ['Sécurité et sauvegardes', 'Sauvegardes, historique des modifications et connexions']
   };

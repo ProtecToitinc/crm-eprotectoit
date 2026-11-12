@@ -784,6 +784,7 @@ app.get('/api/stats', auth, async (req, res) => {
 const integrations = require('./integrations-setup');
 integrations.register(app, { auth });
 require('./performance').register(app, { auth });
+require('./signature').register(app, { auth });
 security.registerAudit(app);
 backup.register(app, { auth, uploadsDirs: [uploadsDir, legacyUploadsDir] });
 sales.register(app, { auth, upload, uploadsDir });

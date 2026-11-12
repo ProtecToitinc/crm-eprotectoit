@@ -155,4 +155,4 @@ function register(app, { auth }) {
     res.json(await process_(parseInt(req.params.id, 10)));
   });
 }
-module.exports = { register, queue, retryPending, compose };
+module.exports = { register, queue, retryPending, compose, sendSms, twilioReady };

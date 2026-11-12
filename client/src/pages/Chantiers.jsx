@@ -142,6 +142,35 @@ function NewChantier({ onClose, onCreated }) {
   );
 }
 
+function RappelVeille({ id, dateDebut }) {
+  const { showToast } = useUI();
+  const { data: r, reload } = useLoad(() => api.meteo.rappel(id), [id, dateDebut]);
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  if (!r) return null;
+  if (!r.pret) return <Field label="Rappel de la veille"><div style={{ fontSize: 13, color: 'var(--fg-muted)' }}>{r.message}</div></Field>;
+  const send = async (fn, ask, ok) => {
+    if (!window.confirm(ask)) return;
+    setBusy(true); setErr('');
+    try { await fn(); showToast(ok); reload(); } catch (e) { setErr(e.message); }
+    setBusy(false);
+  };
+  const copy = async () => { try { await navigator.clipboard.writeText(r.texto || r.text); showToast('Message copié'); } catch { setErr('Copie impossible'); } };
+  return (
+    <Field label="Rappel de la veille au client">
+      <ErrorNote>{err}</ErrorNote>
+      <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 13, background: 'var(--surface-2)', borderRadius: 10, padding: 12, margin: '0 0 10px' }}>{r.texto}</pre>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <button type="button" style={btnAccent} disabled={busy || !r.texto_actif || !r.telephone} onClick={() => send(() => api.meteo.envoyerTexto(id), `Envoyer ce texto au ${r.telephone}?`, 'Texto envoyé')}>Envoyer par texto</button>
+        <button type="button" style={btnGhost} disabled={busy || !r.to} onClick={() => send(() => api.meteo.envoyerRappel(id), `Envoyer ce rappel par courriel à ${r.to}?`, 'Courriel envoyé')}>Envoyer par courriel</button>
+        <button type="button" style={btnGhost} onClick={copy}>Copier</button>
+        {r.envoye_at && <span style={{ fontSize: 12.5, color: '#5f9d5f' }}>Déjà envoyé le {fmtDay(r.envoye_at)}</span>}
+      </div>
+      {!r.texto_actif && <div style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 8 }}>Textos non configurés : il faut un compte Twilio et ses clés dans Railway. En attendant, utilise « Copier » ou le courriel.</div>}
+    </Field>
+  );
+}
+
 function ChantierModal({ id, onClose }) {
   const { showToast } = useUI();
   const { data: ch, error, reload } = useLoad(() => api.chantiers.get(id), [id]);
@@ -186,6 +215,7 @@ function ChantierModal({ id, onClose }) {
       <Field label="Matériaux utilisés"><textarea style={textareaStyle} rows={2} value={f.materiaux} onChange={e => set('materiaux', e.target.value)} placeholder="Produit, quantités…" /></Field>
       <div><button style={btnAccent} disabled={!form} onClick={() => run(() => api.chantiers.update(id, form), 'Chantier enregistré').then(() => setForm(null))}>Enregistrer les notes</button></div>
 
+      <RappelVeille id={id} dateDebut={ch.date_debut} />
       <Field label="Photos">
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
           <select style={{ ...inputStyle, width: 'auto' }} value={photoType} onChange={e => setPhotoType(e.target.value)} aria-label="Type de photo">

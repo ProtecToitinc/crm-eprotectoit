@@ -97,8 +97,9 @@ async function rappelsVeille() {
     await upsertTask({ key: `chantier-veille:${ch.id}:${tomorrow}`, titre: `Rappel client avant les travaux de demain — ${nom(ch)}`,
       description: ch.email ? `Ouvre le chantier → « Rappel de la veille » → Envoyer. Courriel : ${ch.email}` : `Pas de courriel : appelle ${ch.telephone || 'le client'}. Message : ${m.text.replace(/\n+/g, ' ')}`,
       due_date: today.date, client_id: ch.client_id, opportunite_id: ch.opportunite_id, type: 'chantier_rappel', priorite: 'haute' });
-    if (auto && ch.email && today.time >= '16:00') {
-      try { await meteo.sendReminder(ch, 'automatique'); } catch { /* retenté au prochain passage (tâche manuelle conservée) */ }
+    if (auto && today.time >= '16:00') {
+      try { await meteo.sendReminderSms(ch, 'automatique'); }
+      catch { try { if (ch.email) await meteo.sendReminder(ch, 'automatique'); } catch { /* retenté au prochain passage (tâche manuelle conservée) */ } }
     }
   }
   // Météo défavorable dans les 2 prochains jours : proposer de reporter

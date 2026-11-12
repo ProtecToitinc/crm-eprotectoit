@@ -25,6 +25,8 @@ const Chantiers = lazy(() => import('./pages/Chantiers'));
 const Publicites = lazy(() => import('./pages/Publicites'));
 const Parametres = lazy(() => import('./pages/Parametres'));
 const Seo = lazy(() => import('./pages/Seo'));
+const Rapport = lazy(() => import('./pages/Rapport'));
+const Signer = lazy(() => import('./pages/Signer'));
 import { api } from './api';
 
 const IDLE_MS = 60 * 60 * 1000; // verrouillage après 1 h sans activité
@@ -68,6 +70,9 @@ export default function App() {
     </div>
   );
 
+  // Page publique de signature : ouverte par le client, sans compte
+  if (location.pathname.startsWith('/signer/')) return <Suspense fallback={null}><Signer token={location.pathname.split('/')[2] || ''} /></Suspense>;
+
   if (!auth) return <Login onLogin={name => { setUser(name); setWelcomeFade(true); setAuth(true); }} />;
 
   return (
@@ -97,6 +102,7 @@ export default function App() {
             <Route path="/seo" element={<Seo />} />
             <Route path="/integrations" element={<Integrations />} />
             <Route path="/parametres" element={<Parametres />} />
+            <Route path="/rapport" element={<Rapport />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
           </Suspense>
