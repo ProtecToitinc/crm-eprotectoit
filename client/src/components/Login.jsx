@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence, MotionConfig, animate, useMotionValue, useReducedMotion } from 'framer-motion';
-import { ArrowRight, KeyRound, Loader2, ShieldCheck } from 'lucide-react';
+import { ArrowRight, KeyRound, Loader2, ShieldCheck, Eye, EyeOff } from 'lucide-react';
 import { api } from '../api';
 
 const USERS = ['Mathys Caron', 'Ramy Farah'];
@@ -40,7 +40,9 @@ function LoginScreen({ onLogin }) {
   const reduce = useReducedMotion();
   const [user, setUser] = useState(() => { try { return localStorage.getItem('crm_user') || ''; } catch { return ''; } });
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useState(() => { try { const n = sessionStorage.getItem('crm_login_note') || ''; sessionStorage.removeItem('crm_login_note'); return n; } catch { return ''; } });
+  const [showPw, setShowPw] = useState(false);
+  const [caps, setCaps] = useState(false);
   const [phase, setPhase] = useState('idle'); // idle | verifying | success | error | exit
   const [welcome, setWelcome] = useState('');
   const [size, setSize] = useState(null);
@@ -86,6 +88,7 @@ function LoginScreen({ onLogin }) {
       const name = res.user || user;
       localStorage.setItem('crm_token', res.token);
       localStorage.setItem('crm_user', name);
+      try { if (res.derniere?.at) sessionStorage.setItem('crm_last_login', JSON.stringify({ at: res.derniere.at, meme: res.derniere.meme_appareil, echecs: res.echecs || 0 })); } catch { /* sans stockage */ }
       setWelcome(name.split(' ')[0]);
       setPhase('success');
       await sleep(reduce ? 500 : SUCCESS_MS);
@@ -183,9 +186,14 @@ function LoginScreen({ onLogin }) {
                   </motion.div>
                   <motion.div {...enter(0.95)}>
                     <label className="login-label" htmlFor="login-pw">Mot de passe</label>
-                    <input id="login-pw" ref={pwRef} className="login-input" type="password" name="password"
-                      value={password} onChange={e => setPassword(e.target.value)}
-                      autoComplete="current-password" placeholder="••••••••••" autoFocus={!!user} />
+                    <div style={{ position: 'relative' }}>
+                      <input id="login-pw" ref={pwRef} className="login-input" type={showPw ? 'text' : 'password'} name="password" style={{ paddingRight: 46 }}
+                        value={password} onChange={e => setPassword(e.target.value)} onKeyUp={e => setCaps(!!e.getModifierState?.('CapsLock'))} onBlur={() => setCaps(false)}
+                        autoComplete="current-password" placeholder="••••••••••" autoFocus={!!user} aria-describedby="login-caps" />
+                      <button type="button" onClick={() => setShowPw(v => !v)} aria-label={showPw ? 'Masquer le mot de passe' : 'Afficher le mot de passe'} aria-pressed={showPw}
+                        style={{ position: 'absolute', right: 6, top: 6, width: 34, height: 34, display: 'grid', placeItems: 'center', border: 0, borderRadius: 8, background: 'transparent', color: '#a39d93', cursor: 'pointer' }}>{showPw ? <EyeOff size={17} /> : <Eye size={17} />}</button>
+                    </div>
+                    <div id="login-caps" role="status" style={{ minHeight: 16, marginTop: 5, fontSize: 11.5, fontWeight: 700, color: '#f0c06e' }}>{caps ? 'Verrouillage des majuscules activé' : ''}</div>
                   </motion.div>
                 </motion.fieldset>
 
