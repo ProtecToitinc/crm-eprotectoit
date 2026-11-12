@@ -24,6 +24,7 @@ const ROUTE_SCREEN = {
   '/chantiers': 'jobs',
   '/publicites': 'ads',
   '/seo': 'seo',
+  '/rapport': 'rapport',
   '/parametres': 'settings'
 };
 

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { FileText, Trash2, ExternalLink } from 'lucide-react';
+import { FileText, Trash2, ExternalLink, PenLine } from 'lucide-react';
+import SignatureModal from '../components/SignatureModal';
 import { useUI } from '../context/UIContext';
 import { QUOTE_STATUSES, SERVICE_HUE, money, soft } from '../constants';
 import { api } from '../api';
@@ -40,6 +41,7 @@ export default function Soumissions() {
   const [quotes, setQuotes] = useState(null);
   const [error, setError] = useState('');
   const [deletingId, setDeletingId] = useState(null);
+  const [signing, setSigning] = useState(null);
   const [sort, setSort] = useStoredChoice('crm_quotes_sort', 'recent', SORTS.map(s => s.value));
   const { refreshKey, openDeal, bumpRefresh, showToast } = useUI();
 
@@ -137,6 +139,7 @@ export default function Soumissions() {
                     <div style={{ color: 'var(--fg-muted)' }}>{fmtDbDay(q.created_at)}</div>
                     <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 5 }}>
                       {q.drive_url && <a href={q.drive_url} target="_blank" rel="noopener noreferrer" aria-label={`Voir la soumission ${q.reference} dans Drive`} title="Voir la soumission Drive" style={{ fontSize: 11, color: 'var(--fg)', textDecoration: 'none', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}><ExternalLink size={14}/> Voir soumission</a>}
+                      <button type="button" title="Faire signer en ligne" aria-label={`Signature en ligne de ${q.reference}`} onClick={() => setSigning(q)} style={{ color: 'var(--accent)', border: '1px solid var(--border)', borderRadius: 8, background: 'transparent', padding: '7px', cursor: 'pointer', display: 'inline-flex' }}><PenLine size={14} /></button>
                       <button type="button" disabled={deletingId === q.id} title="Supprimer cette soumission du CRM" aria-label={`Supprimer ${q.reference}`} onClick={() => removeQuote(q)} style={{ color: '#c4584f', border: '1px solid var(--border)', borderRadius: 8, background: 'transparent', padding: '7px', cursor: 'pointer', opacity: deletingId === q.id ? .45 : 1 }}><Trash2 size={15}/></button>
                     </div>
                   </div>
@@ -146,6 +149,7 @@ export default function Soumissions() {
           </div>
         )}
       </div>
+      {signing && <SignatureModal quote={signing} onClose={() => { setSigning(null); load(); }} />}
     </div>
   );
 }

@@ -109,6 +109,24 @@ async function jourPour(ch) {
 
 const chantierRow = id => db.get('SELECT ch.*, c.prenom, c.nom, c.email, c.telephone, c.ville FROM chantiers ch JOIN clients c ON c.id=ch.client_id WHERE ch.id=?', [id]);
 
+// Version courte pour un texto
+function smsText(ch, jour) {
+  const date = longDate(ch.date_debut);
+  return `Bonjour${ch.prenom ? ' ' + ch.prenom : ''}, ici ProtecToit. Rappel : nous serons chez vous demain, ${date}, pour vos travaux de toiture. Merci de dégager l’entrée devant la maison (voitures).${jour && jour.verdict !== 'bon' ? ' Si la météo nous oblige à reporter, nous vous appellerons.' : ''}`;
+}
+const texto = () => require('./autoreply');
+/** Envoie le rappel par texto (Twilio) et ferme la tâche liée. */
+async function sendReminderSms(ch, par) {
+  if (!texto().twilioReady()) throw Object.assign(new Error('Les textos ne sont pas configurés (clés Twilio dans Railway).'), { status: 400 });
+  const digits = String(ch.telephone || '').replace(/\D/g, '');
+  if (digits.length < 10) throw Object.assign(new Error('Ce client n’a pas de numéro de cellulaire valide.'), { status: 400 });
+  if (!ch.date_debut) throw Object.assign(new Error('Ce chantier n’a pas de date de début.'), { status: 400 });
+  await texto().sendSms(digits.length === 10 ? `+1${digits}` : `+${digits}`, smsText(ch, await jourPour(ch)));
+  await db.run("UPDATE chantiers SET rappel_envoye_at=datetime('now'), updated_at=datetime('now') WHERE id=?", [ch.id]);
+  await db.run('UPDATE taches SET completed=1 WHERE completed=0 AND source_key LIKE ?', [`chantier-veille:${ch.id}:%`]);
+  await addHistory(ch.client_id, 'chantier', `Rappel de la veille envoyé par texto${par ? ` (${par})` : ''}`);
+}
+
 /** Envoie le rappel par courriel (une seule fois par chantier) et ferme la tâche liée. */
 async function sendReminder(ch, par) {
   if (!ch.email) throw Object.assign(new Error('Ce client n’a pas de courriel : appelle-le ou copie le message.'), { status: 400 });
@@ -148,7 +166,7 @@ function register(app, { auth }) {
     if (!ch) return res.status(404).json({ message: 'Chantier introuvable' });
     if (!ch.date_debut) return res.json({ pret: false, message: 'Ajoute une date de début pour préparer le rappel.' });
     const jour = await jourPour(ch);
-    res.json({ pret: true, to: ch.email || null, envoye_at: ch.rappel_envoye_at || null, meteo: jour, ...buildReminder(ch, jour) });
+    res.json({ pret: true, telephone: ch.telephone || null, texto_actif: texto().twilioReady(), texto: smsText(ch, jour), to: ch.email || null, envoye_at: ch.rappel_envoye_at || null, meteo: jour, ...buildReminder(ch, jour) });
   });
   app.post('/api/chantiers/:id/rappel/envoyer', auth, async (req, res) => {
     const ch = await chantierRow(req.params.id);
@@ -156,8 +174,14 @@ function register(app, { auth }) {
     try { await sendReminder(ch, req.session?.user); res.json({ ok: true }); }
     catch (e) { res.status(e.status || 502).json({ message: e.message || 'Envoi impossible' }); }
   });
+  app.post('/api/chantiers/:id/rappel/texto', auth, async (req, res) => {
+    const ch = await chantierRow(req.params.id);
+    if (!ch) return res.status(404).json({ message: 'Chantier introuvable' });
+    try { await sendReminderSms(ch, req.session?.user); res.json({ ok: true }); }
+    catch (e) { res.status(e.status || 502).json({ message: e.message || 'Envoi impossible' }); }
+  });
   app.get('/api/rappels/veille/config', auth, async (req, res) => res.json({ auto: (await getSetting('rappel_veille_auto')) === '1' }));
   app.put('/api/rappels/veille/config', auth, async (req, res) => { await setSetting('rappel_veille_auto', req.body?.auto ? '1' : '0'); res.json({ auto: !!req.body?.auto }); });
 }
 
-module.exports = { register, forecast, assess, buildReminder, jourPour, sendReminder, codeInfo, nom };
+module.exports = { register, forecast, assess, buildReminder, jourPour, sendReminder, sendReminderSms, smsText, codeInfo, nom };

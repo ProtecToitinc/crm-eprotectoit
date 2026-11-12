@@ -106,8 +106,11 @@ export const api = {
     list: () => req('GET', '/quotes'),
     create: (data) => req('POST', '/quotes', data),
     update: (id, data) => req('PUT', `/quotes/${id}`, data),
-    delete: (id) => req('DELETE', `/quotes/${id}`)
+    delete: (id) => req('DELETE', `/quotes/${id}`),
+    signature: id => req('GET', `/quotes/${id}/signature`),
+    lienSignature: (id, envoyer = false) => req('POST', `/quotes/${id}/signature`, { envoyer })
   },
+  rapport: mois => req('GET', `/rapport${mois ? `?mois=${mois}` : ''}`),
 
   invoices: {
     list: () => req('GET', '/invoices'),
@@ -201,6 +204,7 @@ export const api = {
     setVille: ville => req('PUT', '/meteo/ville', { ville }),
     rappel: id => req('GET', `/chantiers/${id}/rappel`),
     envoyerRappel: id => req('POST', `/chantiers/${id}/rappel/envoyer`),
+    envoyerTexto: id => req('POST', `/chantiers/${id}/rappel/texto`),
     config: () => req('GET', '/rappels/veille/config'),
     setConfig: auto => req('PUT', '/rappels/veille/config', { auto })
   },

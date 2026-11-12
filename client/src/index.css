@@ -282,3 +282,14 @@ main article:hover, .lift:hover { transform: translateY(-3px); border-color: col
 .panel-split { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 26px; align-items: center; }
 @media (max-width: 860px) { .panel-split { grid-template-columns: 1fr; } .hero { padding: 24px 18px; } .hero-stat + .hero-stat { padding-left: 14px; } }
 @media (prefers-reduced-motion: reduce) { .hero-photo { transform: none; } }
+
+/* ---- Rapport mensuel : impression propre sur une page ---- */
+.rapport { max-width: 860px; margin: 0 auto; }
+@media print {
+  @page { margin: 14mm; }
+  html, body, .crm-root { background: #fff !important; color: #111 !important; }
+  aside, header, .ambient, .no-print, .ambient::before { display: none !important; }
+  main { overflow: visible !important; padding: 0 !important; }
+  .rapport { max-width: none; --fg: #111; --fg-muted: #555; --fg-faint: #777; --border: #d5d5d5; --glass: #fff; --glass-2: #f5f5f5; --surface-2: #eee; --accent: #8a6b2e; }
+  .rapport .glass { box-shadow: none !important; backdrop-filter: none !important; break-inside: avoid; }
+}
