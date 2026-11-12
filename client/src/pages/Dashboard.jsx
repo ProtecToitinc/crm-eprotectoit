@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Phone, Check, ArrowUpRight, BellRing, Target, FileText, HardHat, Wallet, Percent, PhoneCall } from 'lucide-react';
-import { Donut } from '../components/charts';
+import { Sparkline } from '../components/charts';
+import Hero from '../components/Hero';
+import Analyse, { fillPoints } from '../components/Analyse';
 import { useUI } from '../context/UIContext';
-import { STAGES, SERVICE_HUE, money } from '../constants';
+import { money } from '../constants';
 import { api } from '../api';
-import Performance from '../components/Performance';
 import Meteo from '../components/Meteo';
-import { Stagger, Rise, CountUp } from '../components/motion';
+import { Stagger, Rise, CountUp, Tilt } from '../components/motion';
 import { parseDay, daysFromToday, relativeDay, timeAgo } from '../lib/dates';
 import { telHref, fullName } from '../lib/search';
 import { iconBtn } from '../components/ui';
@@ -17,6 +18,8 @@ export default function Dashboard() {
   const [error, setError] = useState('');
   const { refreshKey, openDeal, bumpRefresh, showToast } = useUI();
   const navigate = useNavigate();
+  const [trend, setTrend] = useState(null);
+  useEffect(() => { let off = false; api.performance('mois').then(d => { if (!off) setTrend(fillPoints(d.points, 'mois', d.today).map(p => p.encaisse)); }).catch(() => {}); return () => { off = true; }; }, [refreshKey]);
 
   useEffect(() => {
     let off = false;
@@ -42,24 +45,11 @@ export default function Dashboard() {
       : <div role="status" aria-label="Chargement" style={{ display: 'grid', gap: 16 }}>{[120, 260, 120].map((h, i) => <div key={i} className="shimmer" style={{ height: h, borderRadius: 18 }} />)}</div>;
   }
 
-  const parEtape = stats.parEtape || [];
-  const maxCount = Math.max(1, ...STAGES.map(st => parEtape.find(p => p.etape === st.key)?.count || 0));
-  const columns = STAGES.map(st => {
-    const row = parEtape.find(p => p.etape === st.key);
-    const count = row?.count || 0;
-    return { ...st, count, total: money(row?.valeur || 0), barPct: Math.round((count / maxCount) * 100) + '%' };
-  });
-
-  const maxService = Math.max(1, ...stats.servicesRows.map(s => s.total));
-  const services = stats.servicesRows.map(s => ({
-    name: s.service, value: money(s.total), pct: Math.round((s.total / maxService) * 100) + '%', hue: SERVICE_HUE[s.service] || '#9aa0a6'
-  }));
-
   const rappels = stats.appelsARappeler || [];
   const nbRappels = stats.nbRappels || 0;
 
   const kpis = [
-    { icon: Wallet, label: 'Revenus du mois', value: money(stats.revenuMois), delta: fmtDelta(stats.revenuMoisDelta), deltaColor: stats.revenuMoisDelta >= 0 ? '#5f9d5f' : '#c4584f', sub: 'vs mois dernier' },
+    { icon: Wallet, spark: true, label: 'Revenus du mois', value: money(stats.revenuMois), delta: fmtDelta(stats.revenuMoisDelta), deltaColor: stats.revenuMoisDelta >= 0 ? '#5f9d5f' : '#c4584f', sub: 'vs mois dernier' },
     { icon: FileText, label: 'Soumissions actives', value: String(stats.quotesActives), delta: `+${stats.quotesActivesSemaine}`, deltaColor: '#5f9d5f', sub: 'cette semaine' },
     { icon: HardHat, label: 'Projets en cours', value: String(stats.projetsEnCours), delta: `${stats.evenementsProjetsAvenir} à venir`, deltaColor: 'var(--accent)', sub: 'sur le terrain' },
     { icon: Percent, label: 'Taux de conversion', value: `${stats.tauxConversion} %`, delta: '90 jours', deltaColor: '#5f9d5f', sub: 'lead → complété' },
@@ -68,19 +58,27 @@ export default function Dashboard() {
 
   return (
     <div className="fadein">
+      <Hero stats={stats} />
       <Meteo />
-      <div className="dash-top">
-        <Performance />
-        <Card title="Répartition des services">
-          {services.length === 0 && <Empty text="Aucune donnée de service" />}
-          {services.length > 0 && <Donut items={stats.servicesRows.map(s => ({ name: s.service, value: s.total, hue: SERVICE_HUE[s.service] || '#9aa0a6' }))} total={stats.servicesRows.reduce((t, s) => t + s.total, 0)} centerLabel="Total vendu" format={money} />}
-        </Card>
-      </div>
-      <section style={{ marginBottom: 20, padding: '20px 22px', borderRadius: 16, border: '1px solid var(--border)', background: 'var(--surface)', boxShadow: 'var(--shadow)' }}>
+      <Stagger className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', marginBottom: 20 }}>
+        {kpis.map((k, i) => (
+          <Rise key={i} lift={false}><Tilt className="spot" style={{ height: '100%', background: 'var(--glass)', backdropFilter: 'blur(18px) saturate(150%)', WebkitBackdropFilter: 'blur(18px) saturate(150%)', border: '1px solid var(--border)', borderRadius: 14, padding: '18px 20px', boxShadow: 'var(--shadow)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <span style={{ width: 38, height: 38, borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'color-mix(in srgb, var(--accent) 18%, transparent)', color: 'var(--accent)', border: '1px solid color-mix(in srgb, var(--accent) 35%, transparent)' }}><k.icon size={18} /></span>
+              <span style={{ fontSize: 11.5, fontWeight: 800, color: k.deltaColor, background: 'var(--surface-2)', borderRadius: 999, padding: '3px 9px', whiteSpace: 'nowrap' }}>{k.delta}</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8, marginTop: 14 }}><div className="numeral" style={{ fontSize: 28 }}><CountUp value={k.value} /></div>{k.spark && <Sparkline values={trend} />}</div>
+            <div className="eyebrow" style={{ color: 'var(--fg-muted)', marginTop: 8, fontSize: 10.5 }}>{k.label}</div>
+            <div style={{ marginTop: 6, fontSize: 11.5, color: 'var(--fg-faint)', fontWeight: 500 }}>{k.sub}</div>
+          </Tilt></Rise>
+        ))}
+      </Stagger>
+      <Analyse stats={stats} />
+      <section className="glass spot" style={{ marginBottom: 20, padding: '20px 22px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: '.11em', textTransform: 'uppercase' }}>Centre de travail</div>
-            <h2 style={{ margin: '5px 0 3px', fontSize: 21, fontWeight: 800, letterSpacing: '-.025em' }}>Chaque client, à la bonne étape.</h2>
+            <div className="eyebrow">Centre de travail</div>
+            <h2 style={{ margin: '5px 0 3px', fontSize: 21, fontWeight: 600, letterSpacing: '-.02em' }}>Chaque client, à la bonne étape.</h2>
             <p style={{ margin: 0, fontSize: 13, color: 'var(--fg-muted)' }}>Commence par les demandes urgentes, puis avance les soumissions et les chantiers.</p>
           </div>
         </div>
@@ -90,45 +88,19 @@ export default function Dashboard() {
             { label: 'Prospects', detail: 'Répondre aux demandes', icon: Target, to: '/opportunites' },
             { label: 'Soumissions', detail: 'Préparer et envoyer', icon: FileText, to: '/soumissions' },
             { label: 'Chantiers', detail: 'Planifier les travaux', icon: HardHat, to: '/chantiers' }
-          ].map(({ label, detail, icon: Icon, to }) => (
-            <button key={to} onClick={() => navigate(to)} style={{ textAlign: 'left', display: 'flex', gap: 10, alignItems: 'center', padding: '13px 12px', border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface-2)', color: 'var(--fg)', fontFamily: 'inherit', cursor: 'pointer' }}>
+          ].map(({ label, detail, icon: Icon, to }, n) => (
+            <button key={to} onClick={() => navigate(to)} style={{ textAlign: 'left', display: 'flex', gap: 10, alignItems: 'center', padding: '13px 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--glass-2)', color: 'var(--fg)', fontFamily: 'inherit', cursor: 'pointer' }} className="lift">
               <span style={{ display: 'grid', placeItems: 'center', flexShrink: 0, width: 36, height: 36, borderRadius: 9, background: 'var(--surface)', color: 'var(--accent)' }}><Icon size={19} /></span>
-              <span style={{ flex: 1, minWidth: 0 }}><strong style={{ display: 'block', fontSize: 12.8 }}>{label}</strong><span style={{ display: 'block', fontSize: 11, marginTop: 3, color: 'var(--fg-muted)' }}>{detail}</span></span>
+              <span style={{ flex: 1, minWidth: 0 }}><strong style={{ display: 'block', fontSize: 12.8 }}><span style={{ color: 'var(--accent)', fontSize: 11, fontWeight: 600, marginRight: 6 }}>(0{n + 1})</span>{label}</strong><span style={{ display: 'block', fontSize: 11, marginTop: 3, color: 'var(--fg-muted)' }}>{detail}</span></span>
               <ArrowUpRight size={15} style={{ flexShrink: 0, color: 'var(--fg-muted)' }} />
             </button>
           ))}
         </div>
       </section>
-      <Stagger className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', marginBottom: 20 }}>
-        {kpis.map((k, i) => (
-          <Rise key={i} style={{ background: 'var(--glass)', backdropFilter: 'blur(18px) saturate(150%)', WebkitBackdropFilter: 'blur(18px) saturate(150%)', border: '1px solid var(--border)', borderRadius: 20, padding: '18px 20px', boxShadow: 'var(--shadow)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-              <span style={{ width: 38, height: 38, borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'color-mix(in srgb, var(--accent) 18%, transparent)', color: 'var(--accent)', border: '1px solid color-mix(in srgb, var(--accent) 35%, transparent)' }}><k.icon size={18} /></span>
-              <span style={{ fontSize: 11.5, fontWeight: 800, color: k.deltaColor, background: 'var(--surface-2)', borderRadius: 999, padding: '3px 9px', whiteSpace: 'nowrap' }}>{k.delta}</span>
-            </div>
-            <div style={{ fontSize: 27, fontWeight: 800, letterSpacing: '-.02em', marginTop: 14 }}><CountUp value={k.value} /></div>
-            <div style={{ fontSize: 12.5, color: 'var(--fg-muted)', fontWeight: 600, marginTop: 2 }}>{k.label}</div>
-            <div style={{ marginTop: 6, fontSize: 11.5, color: 'var(--fg-faint)', fontWeight: 500 }}>{k.sub}</div>
-          </Rise>
-        ))}
-      </Stagger>
 
 
       <div className="dash-grid" style={{ marginTop: 16 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
-          <Card title="Aperçu du pipeline" link="Voir tout →" onLink={() => navigate('/pipeline')}>
-            {columns.map(c => (
-              <div key={c.key} style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
-                <div style={{ width: 92, flexShrink: 0, fontSize: 12.5, fontWeight: 700, color: 'var(--fg-muted)' }}>{c.short}</div>
-                <div style={{ flex: 1, height: 8, background: 'var(--surface-2)', borderRadius: 6, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: c.barPct, background: c.hue, borderRadius: 6 }} />
-                </div>
-                <div style={{ width: 34, textAlign: 'right', fontSize: 13.5, fontWeight: 800 }}>{c.count}</div>
-                <div style={{ width: 84, textAlign: 'right', fontSize: 12.5, color: 'var(--fg-muted)', fontWeight: 600 }}>{c.total}</div>
-              </div>
-            ))}
-          </Card>
-
           <Card title="Activité récente">
             {stats.historiqueActivite.length === 0 && <Empty text="Aucune activité récente" />}
             {stats.historiqueActivite.map(a => (
@@ -196,9 +168,9 @@ export default function Dashboard() {
 
 function Card({ title, link, onLink, children }) {
   return (
-    <div style={{ background: 'var(--glass)', backdropFilter: 'blur(18px) saturate(150%)', WebkitBackdropFilter: 'blur(18px) saturate(150%)', border: '1px solid var(--border)', borderRadius: 20, padding: 20, boxShadow: 'var(--shadow)', minWidth: 0 }}>
+    <div className="glass spot" style={{ padding: 20 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, gap: 10 }}>
-        <div style={{ fontSize: 15, fontWeight: 800 }}>{title}</div>
+        <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-.01em' }}>{title}</div>
         {link && <button className="linkbtn" onClick={onLink} style={{ border: 'none', background: 'transparent', color: 'var(--fg-muted)', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>{link}</button>}
       </div>
       {children}

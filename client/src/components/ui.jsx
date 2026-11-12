@@ -10,17 +10,17 @@ export const inputStyle = {
 export const textareaStyle = { ...inputStyle, height: 'auto', padding: '10px 13px', resize: 'vertical', lineHeight: 1.45 };
 export const labelStyle = { fontSize: 12, fontWeight: 700, color: 'var(--fg-muted)', marginBottom: 6 };
 export const btnGhost = {
-  height: 40, padding: '0 16px', border: '1px solid var(--border)', borderRadius: 10, background: 'var(--surface)',
+  height: 40, padding: '0 16px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)',
   color: 'var(--fg)', fontFamily: 'inherit', fontSize: 13.5, fontWeight: 700, cursor: 'pointer',
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, whiteSpace: 'nowrap'
 };
-export const btnAccent = { ...btnGhost, border: 'none', background: 'var(--accent)', color: 'var(--accent-fg)' };
+export const btnAccent = { ...btnGhost, border: 'none', background: 'var(--accent)', color: 'var(--accent-fg)', textTransform: 'uppercase', letterSpacing: '.07em', fontSize: 12 };
 export const btnDanger = { ...btnGhost, color: '#c4584f' };
 export const iconBtn = {
   width: 32, height: 32, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)',
   cursor: 'pointer', color: 'var(--fg-muted)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
 };
-export const cardStyle = { background: 'var(--glass)', backdropFilter: 'blur(18px) saturate(150%)', WebkitBackdropFilter: 'blur(18px) saturate(150%)', border: '1px solid var(--border)', borderRadius: 18, boxShadow: 'var(--shadow)' };
+export const cardStyle = { background: 'var(--glass)', backdropFilter: 'blur(18px) saturate(150%)', WebkitBackdropFilter: 'blur(18px) saturate(150%)', border: '1px solid var(--border)', borderRadius: 14, boxShadow: 'var(--shadow)' };
 
 export function Field({ label, children, style }) {
   return (

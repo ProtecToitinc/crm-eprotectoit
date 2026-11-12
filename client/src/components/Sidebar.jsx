@@ -69,8 +69,7 @@ function NavGroup({ title, items, onItemClick, badges }) {
                   style={{
                     display: 'flex', alignItems: 'center', gap: 12, width: '100%',
                     padding: '10px 12px', borderRadius: 9, fontSize: 13.5, fontWeight: 600,
-                    background: isActive ? 'var(--accent)' : 'transparent',
-                    color: isActive ? 'var(--accent-fg)' : 'var(--sidebar-muted)', cursor: 'pointer'
+                    cursor: 'pointer'
                   }}
                 >
                   <Icon size={18} strokeWidth={1.8} style={{ flexShrink: 0 }} />
@@ -79,8 +78,8 @@ function NavGroup({ title, items, onItemClick, badges }) {
                     <span aria-label={`${n} à voir`} style={{
                       minWidth: 20, height: 20, padding: '0 6px', borderRadius: 10, fontSize: 11, fontWeight: 800,
                       display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                      background: isActive ? 'var(--accent-fg)' : badge === 'health' ? '#c4584f' : 'var(--accent)',
-                      color: isActive ? 'var(--accent)' : '#fff'
+                      background: badge === 'health' ? '#c4584f' : '#c8a96e',
+                      color: badge === 'health' ? '#fff' : '#15120b'
                     }}>{n > 99 ? '99+' : n}</span>
                   )}
                 </span>
